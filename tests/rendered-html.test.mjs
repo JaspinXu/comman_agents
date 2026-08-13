@@ -58,6 +58,7 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(page, /method:\s*"POST"/);
   assert.match(page, /添加新人物/);
   assert.match(page, /comman agents/);
+  assert.doesNotMatch(page, /场景库/);
   assert.doesNotMatch(page, /MULTI-AGENT COMPOSITION STUDIO/);
   assert.match(layout, /comman_agents · 群像/);
   assert.match(packageJson, /"name": "comman_agents"/);
