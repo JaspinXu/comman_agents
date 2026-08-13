@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Agent = {
   id: string;
@@ -95,15 +95,25 @@ export default function Home() {
   const [transcript, setTranscript] = useState<string[]>([]);
   const [notice, setNotice] = useState("本地草稿已保存");
   const [newTrait, setNewTrait] = useState("");
+  const storageReady = useRef(false);
 
   useEffect(() => {
     const cached = window.localStorage.getItem("persona-lab-agents");
     if (cached) {
-      try { setAgents(JSON.parse(cached)); } catch { /* keep safe seed */ }
+      try {
+        const restored = JSON.parse(cached) as Agent[];
+        const frame = window.requestAnimationFrame(() => {
+          setAgents(restored);
+          storageReady.current = true;
+        });
+        return () => window.cancelAnimationFrame(frame);
+      } catch { /* keep safe seed */ }
     }
+    storageReady.current = true;
   }, []);
 
   useEffect(() => {
+    if (!storageReady.current) return;
     window.localStorage.setItem("persona-lab-agents", JSON.stringify(agents));
   }, [agents]);
 
@@ -191,7 +201,8 @@ export default function Home() {
 
           <div className="people-grid">
             {agents.map((agent) => (
-              <article key={agent.id} className={`person-card ${agent.id === selected.id ? "focused" : ""}`} onClick={() => setSelectedId(agent.id)} style={{ "--agent": agent.color } as React.CSSProperties}>
+              <article key={agent.id} className={`person-card ${agent.id === selected.id ? "focused" : ""}`} style={{ "--agent": agent.color } as React.CSSProperties}>
+                <button className="person-card-hit" onClick={() => setSelectedId(agent.id)} aria-label={`编辑 ${agent.name} 的人物配置`} />
                 <div className="portrait">
                   <span className="portrait-index">{agent.englishName}</span>
                   <div className="portrait-figure"><b>{agent.initials}</b><i /></div>
