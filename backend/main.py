@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -50,6 +50,13 @@ def health() -> HealthResponse:
 @app.get("/api/agents", response_model=list[AgentConfig])
 def list_agents() -> list[AgentConfig]:
     return repository.list_agents()
+
+
+@app.post("/api/agents", response_model=AgentConfig, status_code=status.HTTP_201_CREATED)
+def create_agent(agent: AgentConfig) -> AgentConfig:
+    if repository.get_agent(agent.id):
+        raise HTTPException(status_code=409, detail="Agent ID already exists")
+    return repository.save_agent(agent)
 
 
 @app.put("/api/agents/{agent_id}", response_model=AgentConfig)

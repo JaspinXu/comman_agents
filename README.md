@@ -84,7 +84,7 @@ Key 未配置时，系统明确显示 `local-demo`，使用离线规则引擎完
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/api/health` | Provider、模型、数据库和工具状态 |
-| GET/PUT | `/api/agents`、`/api/agents/{id}` | 读取和保存透明人物配置 |
+| GET/POST/PUT | `/api/agents`、`/api/agents/{id}` | 创建、读取和保存透明人物配置 |
 | GET | `/api/scenes` | 获取场景定义 |
 | GET | `/api/models` | 获取 SoC Key 可见模型或离线模型 |
 | POST | `/api/tools/{name}/execute` | 按 Agent 授权执行本地工具 |

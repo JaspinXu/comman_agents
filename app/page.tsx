@@ -12,6 +12,7 @@ type Scene = { id: string; index: string; title: string; subtitle: string; objec
 type ToolManifest = { id: string; label: string; description: string; uri: string };
 type Health = { status: string; provider: string; live_provider_configured: boolean; model: string; tools: ToolManifest[] };
 type RunEvent = { type: "status" | "message" | "tool" | "error" | "complete"; agent_id?: string; agent_name?: string; content: string; metadata?: Record<string, unknown> };
+type NewAgentDraft = { name: string; role: string; englishName: string; initials: string; color: string };
 
 const seedAgents: Agent[] = [
   { id: "linxi", name: "林溪", englishName: "LIN XI", role: "用户研究员", color: "#3155d9", initials: "溪", quote: "我关注真实的用户需求，用证据推动决策。", outfit: "钴蓝针织背心、白衬衫、银色耳钉", worldview: "好问题比过早的答案更有价值。证据优先，但不忽略人的感受。", traits: ["好奇", "严谨", "善于提问"], sliders: { autonomy: 72, empathy: 84, creativity: 61, rigor: 88 }, tools: ["current_time", "calculator", "memory"] },
@@ -30,6 +31,7 @@ const fallbackTools: ToolManifest[] = [
   { id: "memory", label: "Memory", description: "持久化运行记忆", uri: "mcp://local/memory" },
 ];
 const sliderLabels: Record<keyof Sliders, string> = { autonomy: "自主性", empathy: "共情倾向", creativity: "创造力", rigor: "严谨性" };
+const blankAgent: NewAgentDraft = { name: "", role: "", englishName: "", initials: "", color: "#6b5cff" };
 
 function apiBase(): string {
   if (typeof window === "undefined") return "http://127.0.0.1:8000";
@@ -48,6 +50,9 @@ export default function Home() {
   const [notice, setNotice] = useState("正在连接 Python 后端…");
   const [running, setRunning] = useState(false);
   const [newTrait, setNewTrait] = useState("");
+  const [creatingAgent, setCreatingAgent] = useState(false);
+  const [newAgent, setNewAgent] = useState<NewAgentDraft>(blankAgent);
+  const [createError, setCreateError] = useState("");
   const saveTimers = useRef<Record<string, number>>({});
 
   useEffect(() => {
@@ -121,6 +126,41 @@ export default function Home() {
     } finally { setRunning(false); }
   }
 
+  async function createAgent(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreateError("");
+    const name = newAgent.name.trim();
+    const role = newAgent.role.trim();
+    if (!name || !role) { setCreateError("姓名和角色不能为空。"); return; }
+    const agent: Agent = {
+      id: `agent_${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`,
+      name,
+      englishName: newAgent.englishName.trim() || `AGENT ${agents.length + 1}`,
+      role,
+      color: newAgent.color,
+      initials: newAgent.initials.trim().slice(0, 4) || name.slice(0, 1),
+      quote: "我会以自己的经验和判断参与这场对话。",
+      outfit: "尚未设置，可在创建后继续补充。",
+      worldview: "保持独立判断，尊重事实，并对自己的建议负责。",
+      traits: ["独立", "开放"],
+      sliders: { autonomy: 70, empathy: 65, creativity: 70, rigor: 70 },
+      tools: ["memory"],
+    };
+    try {
+      const response = await fetch(`${apiBase()}/api/agents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agent) });
+      if (!response.ok) throw new Error(await response.text());
+      const created = await response.json() as Agent;
+      setAgents((current) => [...current, created]);
+      setSelectedId(created.id);
+      setTab("identity");
+      setNewAgent(blankAgent);
+      setCreatingAgent(false);
+      setNotice(`${created.name} 已创建并保存到 SQLite`);
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "创建失败，请检查 Python 后端。");
+    }
+  }
+
   function exportConfig() {
     const blob = new Blob([JSON.stringify({ schema: "comman_agents/v1", agents, scene: sceneId }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
@@ -137,6 +177,7 @@ export default function Home() {
       <aside className="rail">
         <div className="rail-heading"><span>你的成员</span><b>{agents.length}</b></div>
         <div className="agent-rail-list">{agents.map((agent) => <button key={agent.id} className={`rail-agent ${agent.id === selected.id ? "selected" : ""}`} onClick={() => setSelectedId(agent.id)}><span className="rail-avatar" style={{ background: agent.color }}>{agent.initials}</span><span><strong>{agent.name}</strong><small>{agent.role}</small></span><i aria-hidden="true" /></button>)}</div>
+        <button className="add-agent" onClick={() => setCreatingAgent(true)}><span>＋</span> 添加新人物</button>
         <div className="rail-note"><span className="eyebrow">运行状态</span><p>{notice}</p></div>
         <button className="export-button" onClick={exportConfig}>↓ 导出全部配置</button>
       </aside>
@@ -160,5 +201,19 @@ export default function Home() {
         <div className="provider-card"><div><span className="status-dot" /><b>{health?.provider === "soclaas" ? "SoC LaaS 已连接" : "离线模式"}</b></div><code>Python :8000 → {health?.model ?? "等待连接"}</code><p>{health?.live_provider_configured ? "真实模型推理 · SQLite 运行记录 · 本地工具边界" : "设置 SOCLAAS_API_KEY 后重启即可启用真实推理"}</p></div>
       </aside>
     </section>
+    {creatingAgent && <div className="modal-backdrop">
+      <section className="create-agent-modal" role="dialog" aria-modal="true" aria-labelledby="create-agent-title">
+        <div className="modal-head"><div><span className="eyebrow">NEW PERSON</span><h2 id="create-agent-title">创建一个具体的人</h2></div><button type="button" onClick={() => setCreatingAgent(false)} aria-label="关闭创建人物对话框">×</button></div>
+        <p className="modal-intro">先定义基本身份。创建后可以继续完善服装、世界观、人格维度和工具权限。</p>
+        <form className="create-agent-form" onSubmit={createAgent}>
+          <label className="field"><span>姓名 *</span><input maxLength={80} value={newAgent.name} onChange={(event) => setNewAgent({ ...newAgent, name: event.target.value })} placeholder="例如：许墨" /></label>
+          <label className="field"><span>角色 / 职业 *</span><input maxLength={120} value={newAgent.role} onChange={(event) => setNewAgent({ ...newAgent, role: event.target.value })} placeholder="例如：商业分析师" /></label>
+          <div className="form-row"><label className="field"><span>英文名</span><input maxLength={80} value={newAgent.englishName} onChange={(event) => setNewAgent({ ...newAgent, englishName: event.target.value })} placeholder="XU MO" /></label><label className="field initials-field"><span>头像字</span><input maxLength={4} value={newAgent.initials} onChange={(event) => setNewAgent({ ...newAgent, initials: event.target.value })} placeholder="墨" /></label></div>
+          <label className="color-field"><span>人物色彩</span><input type="color" value={newAgent.color} onChange={(event) => setNewAgent({ ...newAgent, color: event.target.value })} /><b style={{ background: newAgent.color }}>{newAgent.initials || newAgent.name.slice(0, 1) || "新"}</b><code>{newAgent.color}</code></label>
+          {createError && <p className="form-error" role="alert">{createError}</p>}
+          <div className="modal-actions"><button type="button" onClick={() => setCreatingAgent(false)}>取消</button><button type="submit">创建并继续完善 →</button></div>
+        </form>
+      </section>
+    </div>}
   </main>;
 }

@@ -28,6 +28,16 @@ class BackendTest(unittest.TestCase):
         self.repository.save_agent(updated)
         self.assertEqual(self.repository.get_agent("linxi").role, "首席用户研究员")
 
+    def test_new_agent_can_be_created_and_listed(self) -> None:
+        source = self.repository.get_agent("linxi")
+        newcomer = source.model_copy(update={
+            "id": "newcomer", "name": "新成员", "english_name": "NEWCOMER",
+            "initials": "新", "role": "产品策略师",
+        })
+        self.repository.save_agent(newcomer)
+        self.assertEqual(self.repository.get_agent("newcomer").name, "新成员")
+        self.assertEqual(len(self.repository.list_agents()), 4)
+
     def test_safe_calculator(self) -> None:
         tools = ToolRegistry()
         self.assertEqual(tools.execute("calculator", {"expression": "(12 + 3) * 2"}), "30")
