@@ -8,8 +8,8 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from .models import AgentConfig, RunEvent, RunSummary, SceneConfig
-from .seed import SEED_AGENTS, SEED_SCENES
+from .models import AgentConfig, RunEvent, RunSummary
+from .seed import SEED_AGENTS
 
 
 def utc_now() -> datetime:
@@ -43,11 +43,8 @@ class Repository:
                 CREATE TABLE IF NOT EXISTS agents (
                     id TEXT PRIMARY KEY, config_json TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
-                CREATE TABLE IF NOT EXISTS scenes (
-                    id TEXT PRIMARY KEY, config_json TEXT NOT NULL, updated_at TEXT NOT NULL
-                );
                 CREATE TABLE IF NOT EXISTS runs (
-                    id TEXT PRIMARY KEY, scene_id TEXT NOT NULL, prompt TEXT NOT NULL,
+                    id TEXT PRIMARY KEY, story_background TEXT NOT NULL, prompt TEXT NOT NULL,
                     provider TEXT NOT NULL, model TEXT NOT NULL, status TEXT NOT NULL,
                     created_at TEXT NOT NULL, completed_at TEXT
                 );
@@ -59,7 +56,11 @@ class Repository:
                     FOREIGN KEY(run_id) REFERENCES runs(id) ON DELETE CASCADE,
                     UNIQUE(run_id, sequence)
                 );
+                CREATE INDEX IF NOT EXISTS idx_runs_created_at ON runs(created_at);
             """)
+            run_columns = {row["name"] for row in db.execute("PRAGMA table_info(runs)").fetchall()}
+            if "story_background" not in run_columns:
+                db.execute("ALTER TABLE runs ADD COLUMN story_background TEXT NOT NULL DEFAULT ''")
             now = utc_now().isoformat()
             for agent in SEED_AGENTS:
                 db.execute(
@@ -75,11 +76,7 @@ class Repository:
                         "UPDATE agents SET config_json = ?, updated_at = ? WHERE id = ?",
                         (json.dumps(existing, ensure_ascii=False), now, agent.id),
                     )
-            for scene in SEED_SCENES:
-                db.execute(
-                    "INSERT OR IGNORE INTO scenes VALUES (?, ?, ?)",
-                    (scene.id, scene.model_dump_json(), now),
-                )
+            db.execute("PRAGMA optimize")
 
     def list_agents(self) -> list[AgentConfig]:
         with self.connect() as db:
@@ -99,22 +96,20 @@ class Repository:
             )
         return agent
 
-    def list_scenes(self) -> list[SceneConfig]:
-        with self.connect() as db:
-            rows = db.execute("SELECT config_json FROM scenes ORDER BY rowid").fetchall()
-        return [SceneConfig.model_validate_json(row["config_json"]) for row in rows]
-
-    def get_scene(self, scene_id: str) -> SceneConfig | None:
-        with self.connect() as db:
-            row = db.execute("SELECT config_json FROM scenes WHERE id = ?", (scene_id,)).fetchone()
-        return SceneConfig.model_validate_json(row["config_json"]) if row else None
-
-    def create_run(self, run_id: str, scene_id: str, prompt: str, provider: str, model: str) -> None:
+    def create_run(self, run_id: str, background: str, prompt: str, provider: str, model: str) -> None:
         with self._lock, self.connect() as db:
-            db.execute(
-                "INSERT INTO runs VALUES (?, ?, ?, ?, ?, 'running', ?, NULL)",
-                (run_id, scene_id, prompt, provider, model, utc_now().isoformat()),
-            )
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(runs)").fetchall()}
+            if "scene_id" in columns:
+                # Older local databases retain this required column; it is no longer exposed or used as product state.
+                db.execute(
+                    "INSERT INTO runs (id, scene_id, story_background, prompt, provider, model, status, created_at, completed_at) VALUES (?, 'custom-story', ?, ?, ?, ?, 'running', ?, NULL)",
+                    (run_id, background, prompt, provider, model, utc_now().isoformat()),
+                )
+            else:
+                db.execute(
+                    "INSERT INTO runs (id, story_background, prompt, provider, model, status, created_at, completed_at) VALUES (?, ?, ?, ?, ?, 'running', ?, NULL)",
+                    (run_id, background, prompt, provider, model, utc_now().isoformat()),
+                )
 
     def add_event(self, event: RunEvent) -> RunEvent:
         with self._lock, self.connect() as db:
@@ -149,7 +144,7 @@ class Repository:
     @staticmethod
     def _row_to_run(row: sqlite3.Row, events: list[RunEvent]) -> RunSummary:
         return RunSummary(
-            id=row["id"], scene_id=row["scene_id"], prompt=row["prompt"], provider=row["provider"],
+            id=row["id"], background=row["story_background"], prompt=row["prompt"], provider=row["provider"],
             model=row["model"], status=row["status"], created_at=datetime.fromisoformat(row["created_at"]),
             completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
             events=events,

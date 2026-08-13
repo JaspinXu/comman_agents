@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from .config import Settings
 from .imagegen import ImageGenerationError, PortraitGenerator
-from .models import AgentConfig, DirectChatRequest, DirectChatResponse, HealthResponse, RunRequest, RunSummary, SceneConfig, ToolExecuteRequest, ToolExecuteResponse
+from .models import AgentConfig, DirectChatRequest, DirectChatResponse, HealthResponse, RunRequest, RunSummary, ToolExecuteRequest, ToolExecuteResponse
 from .orchestrator import Orchestrator
 from .providers import SoCLaaSProvider, build_provider
 from .repository import Repository
@@ -102,11 +102,6 @@ async def direct_chat(agent_id: str, request: DirectChatRequest) -> DirectChatRe
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return DirectChatResponse(agent_id=agent.id, agent_name=agent.name, reply=reply)
-
-
-@app.get("/api/scenes", response_model=list[SceneConfig])
-def list_scenes() -> list[SceneConfig]:
-    return repository.list_scenes()
 
 
 @app.get("/api/models")

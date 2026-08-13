@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from .config import Settings
-from .models import AgentConfig, ChatMessage, SceneConfig
+from .models import AgentConfig, ChatMessage
 from .tools import ToolRegistry
 
 
@@ -20,7 +20,7 @@ class LLMProvider(ABC):
     model: str
 
     @abstractmethod
-    async def generate(self, agent: AgentConfig, scene: SceneConfig, prompt: str, transcript: list[dict[str, str]]) -> str:
+    async def generate(self, agent: AgentConfig, background: str, prompt: str, transcript: list[dict[str, str]]) -> str:
         raise NotImplementedError
 
     @abstractmethod
@@ -28,7 +28,7 @@ class LLMProvider(ABC):
         raise NotImplementedError
 
 
-def system_prompt(agent: AgentConfig, scene: SceneConfig, tools: ToolRegistry) -> str:
+def system_prompt(agent: AgentConfig, background: str, tools: ToolRegistry) -> str:
     traits = "、".join(agent.traits) or "未设置"
     return f"""你不是通用助手，而是一个具体的人。始终使用第一人称，以角色自身的判断发言。
 
@@ -40,12 +40,12 @@ def system_prompt(agent: AgentConfig, scene: SceneConfig, tools: ToolRegistry) -
 代表性表达：{agent.quote}
 人格维度：自主性 {agent.sliders.autonomy}/100；共情 {agent.sliders.empathy}/100；创造力 {agent.sliders.creativity}/100；严谨性 {agent.sliders.rigor}/100。
 
-当前场景：{scene.title}
-场景目标：{scene.objective}
+共同故事背景：
+{background}
 授权工具（只说明能力，当前回合不自动执行）：
 {tools.describe(agent.tools)}
 
-规则：回应其他成员已经提出的观点；允许明确不同意；不要声称自己调用了未执行的工具；给出一段 80 到 220 字的实质发言，不要输出角色名前缀。"""
+规则：每次用户提问你只回答一次；认真阅读用户与其他 Agent 的历史发言；可以主动点名其他 Agent，赞同、补充、追问或明确反驳，而不是彼此隔离地回答；保持自身独立判断；不要声称自己调用了未执行的工具；给出一段 80 到 220 字的实质发言，不要输出角色名前缀。"""
 
 
 def direct_chat_system_prompt(agent: AgentConfig, tools: ToolRegistry) -> str:
@@ -82,11 +82,11 @@ class SoCLaaSProvider(LLMProvider):
             self._raise(response)
             return response.json().get("data", [])
 
-    async def generate(self, agent: AgentConfig, scene: SceneConfig, prompt: str, transcript: list[dict[str, str]]) -> str:
-        messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt(agent, scene, self.tools)}]
+    async def generate(self, agent: AgentConfig, background: str, prompt: str, transcript: list[dict[str, str]]) -> str:
+        messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt(agent, background, self.tools)}]
         if transcript:
-            context = "\n".join(f"{item['name']}：{item['content']}" for item in transcript[-12:])
-            messages.append({"role": "user", "content": f"其他成员目前的发言：\n{context}"})
+            context = "\n".join(f"{item['name']}：{item['content']}" for item in transcript[-30:])
+            messages.append({"role": "user", "content": f"此前的连续对话（包括用户与其他 Agent）：\n{context}"})
         messages.append({"role": "user", "content": prompt})
         payload = {"model": self.model, "messages": messages, "temperature": 0.75, "max_tokens": 600}
         async with httpx.AsyncClient(timeout=self.settings.request_timeout_seconds) as client:
@@ -140,12 +140,13 @@ class LocalDemoProvider(LLMProvider):
     def __init__(self, tools: ToolRegistry):
         self.tools = tools
 
-    async def generate(self, agent: AgentConfig, scene: SceneConfig, prompt: str, transcript: list[dict[str, str]]) -> str:
-        previous = f"我回应前面的观点：{transcript[-1]['content'][:42]}……" if transcript else "这是我在本轮首先关注的事情。"
+    async def generate(self, agent: AgentConfig, background: str, prompt: str, transcript: list[dict[str, str]]) -> str:
+        previous_agent = next((item for item in reversed(transcript) if item.get("agent_id")), None)
+        previous = f"我想接着回应{previous_agent['name']}：{previous_agent['content'][:42]}……" if previous_agent else "这是我在这一轮首先关注的事情。"
         trait = agent.traits[0] if agent.traits else "审慎"
         return (
             f"{previous} 作为{agent.role}，我会以“{trait}”为起点处理“{prompt}”。"
-            f"在{scene.title}中，我建议先围绕“{scene.objective}”建立一个可验证的判断，"
+            f"结合共同背景“{background[:80]}”，我建议先建立一个可验证的判断，"
             f"再明确证据、负责人和下一步。我的原则是：{agent.worldview}"
         )
 

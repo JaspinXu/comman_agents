@@ -32,21 +32,19 @@ class AgentConfig(BaseModel):
     portrait_prompt: str | None = Field(default=None, alias="portraitPrompt", max_length=5000)
 
 
-class SceneConfig(BaseModel):
-    id: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
-    index: str
-    title: str
-    subtitle: str
-    objective: str
-    max_rounds: int = Field(default=1, ge=1, le=8)
+class EnsembleMessage(BaseModel):
+    speaker_type: Literal["user", "agent"]
+    name: str = Field(min_length=1, max_length=80)
+    content: str = Field(min_length=1, max_length=4000)
+    agent_id: str | None = Field(default=None, max_length=64)
 
 
 class RunRequest(BaseModel):
-    scene_id: str = Field(min_length=1, max_length=64)
-    prompt: str = Field(default="请围绕当前场景给出你最重要的判断。", min_length=1, max_length=4000)
+    background: str = Field(min_length=1, max_length=8000)
+    prompt: str = Field(default="请给出你最重要的判断。", min_length=1, max_length=4000)
     agent_ids: list[str] = Field(min_length=1, max_length=12)
+    history: list[EnsembleMessage] = Field(default_factory=list, max_length=120)
     model: str | None = Field(default=None, max_length=200)
-    rounds: int = Field(default=1, ge=1, le=8)
 
 
 class RunEvent(BaseModel):
@@ -63,7 +61,7 @@ class RunEvent(BaseModel):
 
 class RunSummary(BaseModel):
     id: str
-    scene_id: str
+    background: str
     prompt: str
     provider: str
     model: str

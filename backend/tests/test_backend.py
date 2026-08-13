@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from backend.imagegen import portrait_prompt
-from backend.models import ChatMessage, RunRequest
+from backend.models import ChatMessage, EnsembleMessage, RunRequest
 from backend.orchestrator import Orchestrator
 from backend.providers import LocalDemoProvider
 from backend.repository import Repository
@@ -55,7 +55,12 @@ class BackendTest(unittest.TestCase):
     def test_multi_agent_run_is_persisted(self) -> None:
         async def collect():
             orchestrator = Orchestrator(self.repository, LocalDemoProvider(ToolRegistry()))
-            request = RunRequest(scene_id="discovery", prompt="怎样验证需求？", agent_ids=["linxi", "chengye", "shenzhi"])
+            request = RunRequest(
+                background="三位成员正在讨论一个尚未验证的新产品。",
+                prompt="怎样验证需求？",
+                agent_ids=["linxi", "chengye", "shenzhi"],
+                history=[EnsembleMessage(speaker_type="user", name="用户", content="先从真实问题出发")],
+            )
             return [event async for event in orchestrator.run(request)]
 
         events = asyncio.run(collect())
@@ -63,7 +68,9 @@ class BackendTest(unittest.TestCase):
         run = self.repository.get_run(events[0].run_id)
         self.assertIsNotNone(run)
         self.assertEqual(run.status, "completed")
+        self.assertEqual(run.background, "三位成员正在讨论一个尚未验证的新产品。")
         self.assertEqual(len(run.events), 5)
+        self.assertIn("林溪", events[2].content)
 
     def test_portrait_prompt_uses_full_persona(self) -> None:
         agent = self.repository.get_agent("linxi")

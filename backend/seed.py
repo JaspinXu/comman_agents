@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .models import AgentConfig, SceneConfig
+from .models import AgentConfig
 
 
 SEED_AGENTS = [
@@ -40,11 +40,4 @@ SEED_AGENTS = [
         "portraitUrl": "/agent-images/shenzhi.webp",
         "portraitPrompt": "由共创引导者身份、朱红围巾、共情开放且富有创造力的人格配置生成。",
     }),
-]
-
-SEED_SCENES = [
-    SceneConfig(id="discovery", index="01", title="需求探索", subtitle="理解真实问题", objective="识别用户、情境、痛点和仍需验证的假设。"),
-    SceneConfig(id="design", index="02", title="方案设计", subtitle="形成可行路径", objective="形成兼顾价值、可行性和风险的实施方案。"),
-    SceneConfig(id="debate", index="03", title="观点辩论", subtitle="让分歧产生价值", objective="主动呈现不同立场，提炼共识与关键分歧。"),
-    SceneConfig(id="review", index="04", title="风险评审", subtitle="挑战边界条件", objective="寻找失败模式、安全隐患和可逆的缓解措施。"),
 ]

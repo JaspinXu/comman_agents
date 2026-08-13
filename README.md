@@ -1,6 +1,6 @@
 # comman_agents · 群像
 
-一个真正具备前后端运行链路的多 Agent 工作室。用户可以透明编辑每个 Agent 的身份、服装、人格、世界观和工具权限，再把多名 Agent 放进场景，由 Python 编排器逐个调用模型、实时返回事件并将完整运行记录持久化。
+一个真正具备前后端运行链路的多 Agent 工作室。用户可以透明编辑每个 Agent 的身份、服装、人格、世界观和工具权限，设定一段共同故事背景，再连续向全体 Agent 提问。Python 编排器会让每位 Agent 依次回答，并允许后回答者主动回应、补充或反驳其他 Agent；完整运行记录会持久化。
 
 ## 架构
 
@@ -9,15 +9,15 @@ React / vinext :3000
         │  REST + NDJSON streaming
         ▼
 FastAPI :8000
-        ├── Agent / Scene API
+        ├── Agent / Ensemble API
         ├── Multi-Agent Orchestrator
         ├── SoC LaaS Provider
         ├── Local Demo Provider
         ├── Tool Registry（MCP 扩展边界）
-        └── SQLite（人物、场景、运行、事件）
+        └── SQLite（人物、故事背景、提问、发言事件）
 ```
 
-后端不依赖前端保存状态。人物配置通过 `PUT /api/agents/{id}` 写入 SQLite；每次场景运行生成独立 Run，并逐条保存状态、发言和错误事件。
+后端不依赖前端保存状态。人物配置通过 `PUT /api/agents/{id}` 写入 SQLite；每轮提问都会携带故事背景与此前对话，生成独立 Run，并逐条保存背景、问题、发言和错误事件。
 
 人物卡片形象并非通用占位图：后端会把职业、服装、世界观、核心特质、人格维度和人物色彩组合为透明的 ImageGen Prompt。创建新人物后前端自动请求生成；已有三位演示人物使用同一套配置生成的项目内置形象，因此未配置图像 Key 时仍可完整演示。每张人物卡片可直接进入该 Agent 的 1v1 对话。
 
@@ -101,10 +101,9 @@ IMAGEGEN_MODEL=gpt-image-2
 | GET/POST/PUT | `/api/agents`、`/api/agents/{id}` | 创建、读取和保存透明人物配置 |
 | POST | `/api/agents/{id}/portrait` | 根据完整人物配置生成并保存形象 |
 | POST | `/api/agents/{id}/chat` | 与指定 Agent 进行 1v1 对话 |
-| GET | `/api/scenes` | 获取场景定义 |
 | GET | `/api/models` | 获取 SoC Key 可见模型或离线模型 |
 | POST | `/api/tools/{name}/execute` | 按 Agent 授权执行本地工具 |
-| POST | `/api/runs` | 启动多 Agent 运行，返回 NDJSON 事件流 |
+| POST | `/api/runs` | 基于故事背景和历史对话，让全部 Agent 依次回答并返回 NDJSON 事件流 |
 | GET | `/api/runs` | 查询历史运行 |
 | GET | `/api/runs/{id}` | 查询一次运行及全部事件 |
 

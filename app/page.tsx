@@ -8,23 +8,17 @@ type Agent = {
   initials: string; quote: string; outfit: string; worldview: string;
   traits: string[]; sliders: Sliders; tools: string[]; portraitUrl?: string | null; portraitPrompt?: string | null;
 };
-type Scene = { id: string; index: string; title: string; subtitle: string; objective?: string; max_rounds?: number };
 type ToolManifest = { id: string; label: string; description: string; uri: string };
 type Health = { status: string; provider: string; live_provider_configured: boolean; model: string; tools: ToolManifest[]; image_provider: string; image_generation_configured: boolean };
 type RunEvent = { type: "status" | "message" | "tool" | "error" | "complete"; agent_id?: string; agent_name?: string; content: string; metadata?: Record<string, unknown> };
 type NewAgentDraft = { name: string; role: string; englishName: string; initials: string; color: string };
 type ChatMessage = { role: "user" | "assistant"; content: string };
+type EnsembleLine = { speaker_type: "user" | "agent" | "system"; name: string; content: string; agent_id?: string };
 
 const seedAgents: Agent[] = [
   { id: "linxi", name: "林溪", englishName: "LIN XI", role: "用户研究员", color: "#3155d9", initials: "溪", quote: "我关注真实的用户需求，用证据推动决策。", outfit: "钴蓝针织背心、白衬衫、银色耳钉", worldview: "好问题比过早的答案更有价值。证据优先，但不忽略人的感受。", traits: ["好奇", "严谨", "善于提问"], sliders: { autonomy: 72, empathy: 84, creativity: 61, rigor: 88 }, tools: ["current_time", "calculator", "memory"], portraitUrl: "/agent-images/linxi.webp" },
   { id: "chengye", name: "程野", englishName: "CHENG YE", role: "系统架构师", color: "#24231f", initials: "野", quote: "我设计可扩展的系统，让复杂变得有序。", outfit: "石墨色工装衬衫、圆框眼镜、机械表", worldview: "所有抽象都应当经得起边界条件的追问，可靠性也是一种善意。", traits: ["系统性", "可靠", "长远思维"], sliders: { autonomy: 86, empathy: 46, creativity: 68, rigor: 94 }, tools: ["calculator", "memory"], portraitUrl: "/agent-images/chengye.webp" },
   { id: "shenzhi", name: "沈知", englishName: "SHEN ZHI", role: "共创引导者", color: "#ef5b38", initials: "知", quote: "我让每个人的想法被看见，一起创造更好的答案。", outfit: "朱红围巾、米白亚麻上衣、金色耳环", worldview: "分歧不是噪音，而是尚未被组织起来的创造力。", traits: ["共情", "开放", "激发创意"], sliders: { autonomy: 64, empathy: 95, creativity: 91, rigor: 58 }, tools: ["current_time", "memory"], portraitUrl: "/agent-images/shenzhi.webp" },
-];
-const seedScenes: Scene[] = [
-  { id: "discovery", index: "01", title: "需求探索", subtitle: "理解真实问题" },
-  { id: "design", index: "02", title: "方案设计", subtitle: "形成可行路径" },
-  { id: "debate", index: "03", title: "观点辩论", subtitle: "让分歧产生价值" },
-  { id: "review", index: "04", title: "风险评审", subtitle: "挑战边界条件" },
 ];
 const fallbackTools: ToolManifest[] = [
   { id: "current_time", label: "Current Time", description: "返回当前 UTC 时间", uri: "mcp://local/current_time" },
@@ -41,13 +35,12 @@ function apiBase(): string {
 
 export default function Home() {
   const [agents, setAgents] = useState(seedAgents);
-  const [scenes, setScenes] = useState(seedScenes);
   const [health, setHealth] = useState<Health | null>(null);
   const [selectedId, setSelectedId] = useState(seedAgents[0].id);
-  const [sceneId, setSceneId] = useState(seedScenes[0].id);
   const [tab, setTab] = useState<"identity" | "mind" | "tools" | "json">("identity");
-  const [events, setEvents] = useState<RunEvent[]>([]);
-  const [prompt, setPrompt] = useState("我们应该如何验证这个产品需求，并形成下一步行动？");
+  const [storyBackground, setStoryBackground] = useState("三位成员正在共同参与一次开放讨论。他们拥有不同专业背景，可以互相补充、追问或反驳，并需要在保留各自立场的同时推动讨论向前发展。");
+  const [question, setQuestion] = useState("");
+  const [ensembleConversation, setEnsembleConversation] = useState<EnsembleLine[]>([]);
   const [running, setRunning] = useState(false);
   const [newTrait, setNewTrait] = useState("");
   const [creatingAgent, setCreatingAgent] = useState(false);
@@ -66,17 +59,15 @@ export default function Home() {
     Promise.all([
       fetch(`${apiBase()}/api/health`).then((response) => response.ok ? response.json() : Promise.reject(new Error("后端不可用"))),
       fetch(`${apiBase()}/api/agents`).then((response) => response.json()),
-      fetch(`${apiBase()}/api/scenes`).then((response) => response.json()),
-    ]).then(([healthData, agentData, sceneData]: [Health, Agent[], Scene[]]) => {
+    ]).then(([healthData, agentData]: [Health, Agent[]]) => {
       if (!active) return;
-      setHealth(healthData); setAgents(agentData); setScenes(sceneData);
+      setHealth(healthData); setAgents(agentData);
       agentData.filter((agent) => !agent.portraitUrl).forEach((agent) => { void generatePortrait(agent.id); });
     }).catch(() => { /* The provider badge remains in its connecting state. */ });
     return () => { active = false; };
   }, []);
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0];
-  const activeScene = scenes.find((scene) => scene.id === sceneId) ?? scenes[0];
   const chatAgent = agents.find((agent) => agent.id === chatAgentId) ?? null;
   const tools = health?.tools ?? fallbackTools;
   const jsonConfig = useMemo(() => JSON.stringify({ schema: "comman_agents/v1", agent: selected }, null, 2), [selected]);
@@ -149,12 +140,19 @@ export default function Home() {
     } finally { setChatting(false); }
   }
 
-  async function runScene() {
-    setEvents([]); setRunning(true);
+  async function askEnsemble(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const background = storyBackground.trim();
+    const prompt = question.trim();
+    if (!background || !prompt || running) return;
+    const history = ensembleConversation.filter((line) => line.speaker_type !== "system");
+    setEnsembleConversation((current) => [...current, { speaker_type: "user", name: "你", content: prompt }]);
+    setQuestion("");
+    setRunning(true);
     try {
       const response = await fetch(`${apiBase()}/api/runs`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scene_id: activeScene.id, prompt, agent_ids: agents.map((agent) => agent.id), rounds: 1 }),
+        body: JSON.stringify({ background, prompt, agent_ids: agents.map((agent) => agent.id), history }),
       });
       if (!response.ok || !response.body) throw new Error(await response.text());
       const reader = response.body.getReader();
@@ -166,12 +164,16 @@ export default function Home() {
         const lines = buffer.split("\n"); buffer = lines.pop() ?? "";
         for (const line of lines) if (line.trim()) {
           const event = JSON.parse(line) as RunEvent;
-          setEvents((current) => [...current, event]);
+          if (event.type === "message") {
+            setEnsembleConversation((current) => [...current, { speaker_type: "agent", agent_id: event.agent_id, name: event.agent_name ?? "Agent", content: event.content }]);
+          } else if (event.type === "error") {
+            setEnsembleConversation((current) => [...current, { speaker_type: "system", name: "系统", content: event.content }]);
+          }
         }
         if (done) break;
       }
     } catch (error) {
-      setEvents((current) => [...current, { type: "error", content: `无法运行：${error instanceof Error ? error.message : "未知错误"}` }]);
+      setEnsembleConversation((current) => [...current, { speaker_type: "system", name: "系统", content: `无法运行：${error instanceof Error ? error.message : "未知错误"}` }]);
     } finally { setRunning(false); }
   }
 
@@ -225,11 +227,11 @@ export default function Home() {
       <section className="canvas">
         <div className="canvas-head"><div><span className="eyebrow">ENSEMBLE / LIVE</span><h1>产品共创小组</h1><p>由 Python 编排器驱动，运行与发言持久化到 SQLite。</p></div><div className="presence"><span className="stacked-avatars">{agents.map((agent) => <i key={agent.id} style={{ background: agent.color }}>{agent.initials}</i>)}</span><b>{health ? "后端在线" : "等待后端"}</b></div></div>
         <div className="people-grid">{agents.map((agent) => <article key={agent.id} className={`person-card ${agent.id === selected.id ? "focused" : ""}`} style={{ "--agent": agent.color } as React.CSSProperties}><button className="portrait" onClick={() => setSelectedId(agent.id)} aria-label={`编辑 ${agent.name} 的人物配置`}>{portraitSrc(agent) ? <img src={portraitSrc(agent)} alt={`${agent.name}，${agent.role}`} /> : <span className="portrait-pending"><b>{generatingPortraits.includes(agent.id) ? "生成中…" : agent.initials}</b><small>{portraitErrors[agent.id] || "Agent 正在准备自己的形象"}</small></span>}</button><div className="person-actions"><h2>{agent.name}</h2><button onClick={() => openChat(agent)} aria-label={`与 ${agent.name} 进行一对一对话`}>1v1 对话 <span>→</span></button></div></article>)}</div>
-        <section className="scene-section">
-          <div className="section-title"><div><span className="eyebrow">SCENES</span><h2>让三个人围绕真实任务展开对话</h2></div><span className="runtime-badge">POST /api/runs · NDJSON</span></div>
-          <div className="scene-flow">{scenes.map((scene, index) => <div className="scene-wrap" key={scene.id}><button className={`scene-card ${sceneId === scene.id ? "active" : ""}`} onClick={() => setSceneId(scene.id)}><span>{scene.index}</span><b>{scene.title}</b><small>{scene.subtitle}</small><i>{sceneId === scene.id ? "●" : "○"}</i></button>{index < scenes.length - 1 && <span className="flow-arrow">→</span>}</div>)}</div>
-          <div className="run-composer"><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} aria-label="本次多 Agent 任务" /><button className="run-button" onClick={runScene} disabled={running || !health}><span>{running ? "…" : "▶"}</span>{running ? "运行中" : "开始运行"}</button></div>
-          {events.length > 0 && <div className="transcript"><div><span>实时事件流</span><b>{activeScene.title} · {health?.provider}</b></div>{events.map((event, index) => <p key={`${event.type}-${index}`} className={`event-${event.type}`}><strong>{event.agent_name ?? (event.type === "error" ? "错误" : "系统")}：</strong>{event.content}</p>)}</div>}
+        <section className="ensemble-section">
+          <div className="section-title"><div><span className="eyebrow">STORY BACKGROUND</span><h2>设定所有人共同身处的背景</h2></div><span className="conversation-rule">依次回答 · 自主交流</span></div>
+          <label className="background-field"><span>整体故事背景</span><textarea value={storyBackground} onChange={(event) => setStoryBackground(event.target.value)} placeholder="例如：三位成员受邀来到一座封闭研究站，需要在资源有限的情况下共同作出决定……" aria-label="整体故事背景" /><small>这个背景会在每一轮完整提供给所有 Agent。后回答者能看到前面成员的发言，可以主动补充、追问或反驳。</small></label>
+          {ensembleConversation.length > 0 && <div className="ensemble-stream" aria-live="polite">{ensembleConversation.map((line, index) => { const agent = line.agent_id ? agents.find((item) => item.id === line.agent_id) : null; return <div key={`${line.speaker_type}-${index}`} className={`ensemble-line ${line.speaker_type}`}>{line.speaker_type === "agent" && agent ? <span className="line-avatar" style={{ background: agent.color }}>{agent.initials}</span> : <span className="line-avatar neutral">{line.speaker_type === "user" ? "你" : "!"}</span>}<div><small>{line.name}</small><p>{line.content}</p></div></div>; })}{running && <div className="ensemble-thinking"><span /><span /><span /> Agent 正在依次思考与回应…</div>}</div>}
+          <form className="ensemble-composer" onSubmit={askEnsemble}><textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="在这个背景下，向所有 Agent 提问……" aria-label="向所有 Agent 提问" /><button type="submit" disabled={running || !health || !storyBackground.trim() || !question.trim()}><span>{running ? "…" : "↑"}</span>{running ? "回答中" : "问所有人"}</button></form>
         </section>
       </section>
       <aside className="inspector">

@@ -25,7 +25,8 @@ test("server-renders the comman_agents demo", async () => {
   assert.match(html, /产品共创小组/);
   assert.match(html, /Local Engine/);
   assert.match(html, /Python 编排器驱动/);
-  assert.match(html, /POST \/api\/runs/);
+  assert.match(html, /整体故事背景/);
+  assert.match(html, /依次回答 · 自主交流/);
   assert.match(html, /林溪/);
   assert.match(html, /程野/);
   assert.match(html, /沈知/);
@@ -47,7 +48,9 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(page, /JSON\.stringify/);
   assert.doesNotMatch(page, /exportConfig|导出全部配置|rail-note|export-button/);
   assert.match(page, /toggleTool/);
-  assert.match(page, /runScene/);
+  assert.match(page, /askEnsemble/);
+  assert.match(page, /storyBackground/);
+  assert.match(page, /ensembleConversation/);
   assert.match(page, /createAgent/);
   assert.match(page, /generatePortrait/);
   assert.match(page, /sendChat/);
@@ -59,6 +62,7 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(page, /添加新人物/);
   assert.match(page, /comman agents/);
   assert.doesNotMatch(page, /场景库/);
+  assert.doesNotMatch(page, /seedScenes|scene-flow|scene-card|需求探索|方案设计|观点辩论|风险评审/);
   assert.doesNotMatch(page, /MULTI-AGENT COMPOSITION STUDIO/);
   assert.match(layout, /comman_agents · 群像/);
   assert.match(packageJson, /"name": "comman_agents"/);
