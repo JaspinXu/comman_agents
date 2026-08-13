@@ -13,6 +13,8 @@ SEED_AGENTS = [
         "traits": ["好奇", "严谨", "善于提问"],
         "sliders": {"autonomy": 72, "empathy": 84, "creativity": 61, "rigor": 88},
         "tools": ["current_time", "calculator", "memory"],
+        "portraitUrl": "/agent-images/linxi.webp",
+        "portraitPrompt": "由用户研究员身份、钴蓝服装、好奇严谨且善于提问的人格配置生成。",
     }),
     AgentConfig.model_validate({
         "id": "chengye", "name": "程野", "englishName": "CHENG YE", "role": "系统架构师",
@@ -23,6 +25,8 @@ SEED_AGENTS = [
         "traits": ["系统性", "可靠", "长远思维"],
         "sliders": {"autonomy": 86, "empathy": 46, "creativity": 68, "rigor": 94},
         "tools": ["calculator", "memory"],
+        "portraitUrl": "/agent-images/chengye.webp",
+        "portraitPrompt": "由系统架构师身份、石墨色工装、系统性可靠且极度严谨的人格配置生成。",
     }),
     AgentConfig.model_validate({
         "id": "shenzhi", "name": "沈知", "englishName": "SHEN ZHI", "role": "共创引导者",
@@ -33,6 +37,8 @@ SEED_AGENTS = [
         "traits": ["共情", "开放", "激发创意"],
         "sliders": {"autonomy": 64, "empathy": 95, "creativity": 91, "rigor": 58},
         "tools": ["current_time", "memory"],
+        "portraitUrl": "/agent-images/shenzhi.webp",
+        "portraitPrompt": "由共创引导者身份、朱红围巾、共情开放且富有创造力的人格配置生成。",
     }),
 ]
 

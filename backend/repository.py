@@ -66,6 +66,15 @@ class Repository:
                     "INSERT OR IGNORE INTO agents VALUES (?, ?, ?)",
                     (agent.id, agent.model_dump_json(by_alias=True), now),
                 )
+                row = db.execute("SELECT config_json FROM agents WHERE id = ?", (agent.id,)).fetchone()
+                existing = json.loads(row["config_json"])
+                if not existing.get("portraitUrl"):
+                    existing["portraitUrl"] = agent.portrait_url
+                    existing["portraitPrompt"] = agent.portrait_prompt
+                    db.execute(
+                        "UPDATE agents SET config_json = ?, updated_at = ? WHERE id = ?",
+                        (json.dumps(existing, ensure_ascii=False), now, agent.id),
+                    )
             for scene in SEED_SCENES:
                 db.execute(
                     "INSERT OR IGNORE INTO scenes VALUES (?, ?, ?)",

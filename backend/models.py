@@ -28,6 +28,8 @@ class AgentConfig(BaseModel):
     traits: list[str] = Field(default_factory=list, max_length=24)
     sliders: Sliders
     tools: list[str] = Field(default_factory=list, max_length=32)
+    portrait_url: str | None = Field(default=None, alias="portraitUrl", max_length=1000)
+    portrait_prompt: str | None = Field(default=None, alias="portraitPrompt", max_length=5000)
 
 
 class SceneConfig(BaseModel):
@@ -78,6 +80,24 @@ class HealthResponse(BaseModel):
     model: str
     database: str
     tools: list[dict[str, Any]]
+    image_provider: str
+    image_generation_configured: bool
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class DirectChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=30)
+
+
+class DirectChatResponse(BaseModel):
+    agent_id: str
+    agent_name: str
+    reply: str
 
 
 class ToolExecuteRequest(BaseModel):

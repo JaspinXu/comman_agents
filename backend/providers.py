@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from .config import Settings
-from .models import AgentConfig, SceneConfig
+from .models import AgentConfig, ChatMessage, SceneConfig
 from .tools import ToolRegistry
 
 
@@ -21,6 +21,10 @@ class LLMProvider(ABC):
 
     @abstractmethod
     async def generate(self, agent: AgentConfig, scene: SceneConfig, prompt: str, transcript: list[dict[str, str]]) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def direct_chat(self, agent: AgentConfig, message: str, history: list[ChatMessage]) -> str:
         raise NotImplementedError
 
 
@@ -42,6 +46,21 @@ def system_prompt(agent: AgentConfig, scene: SceneConfig, tools: ToolRegistry) -
 {tools.describe(agent.tools)}
 
 规则：回应其他成员已经提出的观点；允许明确不同意；不要声称自己调用了未执行的工具；给出一段 80 到 220 字的实质发言，不要输出角色名前缀。"""
+
+
+def direct_chat_system_prompt(agent: AgentConfig, tools: ToolRegistry) -> str:
+    traits = "、".join(agent.traits) or "未设置"
+    return f"""你是 {agent.name}，不是通用助手。请始终以这个具体人物的第一人称与用户进行一对一对话。
+职业：{agent.role}
+外观与服装：{agent.outfit}
+核心特质：{traits}
+世界观与判断原则：{agent.worldview}
+代表性表达：{agent.quote}
+人格维度：自主性 {agent.sliders.autonomy}/100；共情 {agent.sliders.empathy}/100；创造力 {agent.sliders.creativity}/100；严谨性 {agent.sliders.rigor}/100。
+已授权能力：
+{tools.describe(agent.tools)}
+
+规则：保持人物口吻和独立判断；自然回应用户，不输出姓名标签；不了解时坦诚说明；不要声称使用了未实际执行的工具。"""
 
 
 class SoCLaaSProvider(LLMProvider):
@@ -83,6 +102,24 @@ class SoCLaaSProvider(LLMProvider):
         except (KeyError, IndexError, TypeError) as exc:
             raise ProviderError("SoC LaaS returned an unexpected response shape") from exc
 
+    async def direct_chat(self, agent: AgentConfig, message: str, history: list[ChatMessage]) -> str:
+        messages: list[dict[str, str]] = [{"role": "system", "content": direct_chat_system_prompt(agent, self.tools)}]
+        messages.extend({"role": item.role, "content": item.content} for item in history[-20:])
+        messages.append({"role": "user", "content": message})
+        payload = {"model": self.model, "messages": messages, "temperature": 0.8, "max_tokens": 700}
+        async with httpx.AsyncClient(timeout=self.settings.request_timeout_seconds) as client:
+            response = await client.post(
+                f"{self.settings.soclaas_base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self.settings.soclaas_api_key}", "Content-Type": "application/json"},
+                content=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            )
+            self._raise(response)
+            data = response.json()
+        try:
+            return data["choices"][0]["message"]["content"].strip()
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ProviderError("SoC LaaS returned an unexpected response shape") from exc
+
     @staticmethod
     def _raise(response: httpx.Response) -> None:
         if response.is_success:
@@ -110,6 +147,15 @@ class LocalDemoProvider(LLMProvider):
             f"{previous} 作为{agent.role}，我会以“{trait}”为起点处理“{prompt}”。"
             f"在{scene.title}中，我建议先围绕“{scene.objective}”建立一个可验证的判断，"
             f"再明确证据、负责人和下一步。我的原则是：{agent.worldview}"
+        )
+
+    async def direct_chat(self, agent: AgentConfig, message: str, history: list[ChatMessage]) -> str:
+        context = f"你刚才提到“{history[-1].content[:36]}”，" if history else ""
+        trait = agent.traits[0] if agent.traits else "审慎"
+        return (
+            f"{context}我会以{agent.role}的经验和“{trait}”的方式理解你的问题。"
+            f"对于“{message}”，我目前最重要的判断是：{agent.worldview} "
+            "如果你愿意，我们可以继续把目标、证据和下一步拆得更具体。"
         )
 
 

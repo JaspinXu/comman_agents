@@ -19,6 +19,8 @@ FastAPI :8000
 
 后端不依赖前端保存状态。人物配置通过 `PUT /api/agents/{id}` 写入 SQLite；每次场景运行生成独立 Run，并逐条保存状态、发言和错误事件。
 
+人物卡片形象并非通用占位图：后端会把职业、服装、世界观、核心特质、人格维度和人物色彩组合为透明的 ImageGen Prompt。创建新人物后前端自动请求生成；已有三位演示人物使用同一套配置生成的项目内置形象，因此未配置图像 Key 时仍可完整演示。每张人物卡片可直接进入该 Agent 的 1v1 对话。
+
 ## 固定使用 pytorch_env
 
 项目只使用已有环境：
@@ -79,12 +81,26 @@ SOCLAAS_MODEL=qwen3.6:35b
 
 Key 未配置时，系统明确显示 `local-demo`，使用离线规则引擎完成整个编排、流式返回和持久化链路，不会伪装成真实模型回答。
 
+## 连接人物 ImageGen
+
+SoC DocHub 页面需要校内账号登录，当前无法从公开文档确认 SoC LaaS 是否提供图像生成端点。因此图像能力与 SoC 文本模型分开配置，默认使用兼容 `/images/generations` 的接口：
+
+```dotenv
+IMAGEGEN_API_KEY=你的图像服务密钥
+IMAGEGEN_BASE_URL=https://api.openai.com/v1
+IMAGEGEN_MODEL=gpt-image-2
+```
+
+新人物创建后会自动生成形象。人物配置更新后，可在右侧“身份”页按最新配置重新生成。Prompt 与最终图片地址会一并保存在 Agent 的透明配置中。未配置 Key 时不会伪装生成成功，接口会明确返回 `503`，同时已有演示人物仍使用项目内置生成图。
+
 ## API
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/api/health` | Provider、模型、数据库和工具状态 |
 | GET/POST/PUT | `/api/agents`、`/api/agents/{id}` | 创建、读取和保存透明人物配置 |
+| POST | `/api/agents/{id}/portrait` | 根据完整人物配置生成并保存形象 |
+| POST | `/api/agents/{id}/chat` | 与指定 Agent 进行 1v1 对话 |
 | GET | `/api/scenes` | 获取场景定义 |
 | GET | `/api/models` | 获取 SoC Key 可见模型或离线模型 |
 | POST | `/api/tools/{name}/execute` | 按 Agent 授权执行本地工具 |

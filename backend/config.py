@@ -29,6 +29,10 @@ class Settings:
     soclaas_model: str
     request_timeout_seconds: float
     max_rounds: int
+    imagegen_base_url: str
+    imagegen_api_key: str | None
+    imagegen_model: str
+    agent_image_path: Path
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -37,6 +41,10 @@ class Settings:
         database_path = Path(database_value)
         if not database_path.is_absolute():
             database_path = PROJECT_ROOT / database_path
+        image_path_value = os.getenv("AGENT_IMAGE_PATH", "data/agent_images")
+        agent_image_path = Path(image_path_value)
+        if not agent_image_path.is_absolute():
+            agent_image_path = PROJECT_ROOT / agent_image_path
         return cls(
             database_path=database_path,
             soclaas_base_url=os.getenv(
@@ -46,4 +54,8 @@ class Settings:
             soclaas_model=os.getenv("SOCLAAS_MODEL", "qwen3.6:35b"),
             request_timeout_seconds=float(os.getenv("SOCLAAS_TIMEOUT", "90")),
             max_rounds=max(1, min(int(os.getenv("PERSONA_LAB_MAX_ROUNDS", "3")), 8)),
+            imagegen_base_url=os.getenv("IMAGEGEN_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
+            imagegen_api_key=os.getenv("IMAGEGEN_API_KEY") or os.getenv("OPENAI_API_KEY") or None,
+            imagegen_model=os.getenv("IMAGEGEN_MODEL", "gpt-image-2"),
+            agent_image_path=agent_image_path,
         )

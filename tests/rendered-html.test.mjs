@@ -49,6 +49,12 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(page, /toggleTool/);
   assert.match(page, /runScene/);
   assert.match(page, /createAgent/);
+  assert.match(page, /generatePortrait/);
+  assert.match(page, /sendChat/);
+  assert.match(page, /1v1 对话/);
+  assert.match(page, /\/portrait/);
+  assert.match(page, /\/chat/);
+  assert.doesNotMatch(page, /person-card-hit|person-copy|portrait-figure|tool-dots/);
   assert.match(page, /method:\s*"POST"/);
   assert.match(page, /添加新人物/);
   assert.match(page, /comman agents/);

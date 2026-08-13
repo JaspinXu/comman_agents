@@ -5,7 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.models import RunRequest
+from backend.imagegen import portrait_prompt
+from backend.models import ChatMessage, RunRequest
 from backend.orchestrator import Orchestrator
 from backend.providers import LocalDemoProvider
 from backend.repository import Repository
@@ -24,6 +25,7 @@ class BackendTest(unittest.TestCase):
     def test_seed_and_agent_persistence(self) -> None:
         agents = self.repository.list_agents()
         self.assertEqual([agent.id for agent in agents], ["linxi", "chengye", "shenzhi"])
+        self.assertEqual(agents[0].portrait_url, "/agent-images/linxi.webp")
         updated = agents[0].model_copy(update={"role": "首席用户研究员"})
         self.repository.save_agent(updated)
         self.assertEqual(self.repository.get_agent("linxi").role, "首席用户研究员")
@@ -62,6 +64,21 @@ class BackendTest(unittest.TestCase):
         self.assertIsNotNone(run)
         self.assertEqual(run.status, "completed")
         self.assertEqual(len(run.events), 5)
+
+    def test_portrait_prompt_uses_full_persona(self) -> None:
+        agent = self.repository.get_agent("linxi")
+        prompt = portrait_prompt(agent)
+        self.assertIn(agent.role, prompt)
+        self.assertIn(agent.outfit, prompt)
+        self.assertIn(agent.worldview, prompt)
+        self.assertIn(agent.traits[0], prompt)
+
+    def test_direct_chat_stays_in_character(self) -> None:
+        agent = self.repository.get_agent("chengye")
+        provider = LocalDemoProvider(ToolRegistry())
+        reply = asyncio.run(provider.direct_chat(agent, "这个方案可靠吗？", [ChatMessage(role="user", content="先看边界条件")]))
+        self.assertIn(agent.role, reply)
+        self.assertIn(agent.worldview, reply)
 
 
 if __name__ == "__main__":

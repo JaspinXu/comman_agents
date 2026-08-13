@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from .config import Settings
-from .models import AgentConfig, HealthResponse, RunRequest, RunSummary, SceneConfig, ToolExecuteRequest, ToolExecuteResponse
+from .imagegen import ImageGenerationError, PortraitGenerator
+from .models import AgentConfig, DirectChatRequest, DirectChatResponse, HealthResponse, RunRequest, RunSummary, SceneConfig, ToolExecuteRequest, ToolExecuteResponse
 from .orchestrator import Orchestrator
 from .providers import SoCLaaSProvider, build_provider
 from .repository import Repository
@@ -20,6 +22,7 @@ repository = Repository(settings.database_path)
 tools = ToolRegistry()
 provider = build_provider(settings, tools)
 orchestrator = Orchestrator(repository, provider)
+portrait_generator = PortraitGenerator(settings)
 
 
 @asynccontextmanager
@@ -44,6 +47,8 @@ def health() -> HealthResponse:
         status="ok", provider=provider.name,
         live_provider_configured=isinstance(provider, SoCLaaSProvider), model=provider.model,
         database=str(settings.database_path), tools=tools.manifests(),
+        image_provider=portrait_generator.name,
+        image_generation_configured=portrait_generator.configured,
     )
 
 
@@ -64,6 +69,39 @@ def update_agent(agent_id: str, agent: AgentConfig) -> AgentConfig:
     if agent_id != agent.id:
         raise HTTPException(status_code=400, detail="Path and payload agent IDs differ")
     return repository.save_agent(agent)
+
+
+@app.post("/api/agents/{agent_id}/portrait", response_model=AgentConfig)
+async def generate_agent_portrait(agent_id: str) -> AgentConfig:
+    agent = repository.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    try:
+        updated = await portrait_generator.generate(agent)
+    except ImageGenerationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return repository.save_agent(updated)
+
+
+@app.get("/api/agent-images/{filename}")
+def get_agent_image(filename: str) -> FileResponse:
+    safe_name = Path(filename).name
+    image_path = settings.agent_image_path / safe_name
+    if safe_name != filename or not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image_path)
+
+
+@app.post("/api/agents/{agent_id}/chat", response_model=DirectChatResponse)
+async def direct_chat(agent_id: str, request: DirectChatRequest) -> DirectChatResponse:
+    agent = repository.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    try:
+        reply = await provider.direct_chat(agent, request.message, request.history)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return DirectChatResponse(agent_id=agent.id, agent_name=agent.name, reply=reply)
 
 
 @app.get("/api/scenes", response_model=list[SceneConfig])
