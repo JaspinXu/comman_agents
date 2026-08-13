@@ -6,21 +6,5 @@
     "remote.SSH.useLocalServer": true,
     "python.defaultInterpreterPath": "C:\\Users\\19826\\anaconda3\\envs\\pytorch_env\\python.exe",
     "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda",
-    "terminal.integrated.defaultProfile.windows": "comman_agents (pytorch_env)",
-    "terminal.integrated.cwd": "G:\\Codex\\comman_agents",
-    "terminal.integrated.profiles.windows": {
-        "comman_agents (pytorch_env)": {
-            "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-            "args": [
-                "-NoLogo",
-                "-NoExit",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "${workspaceFolder}\\.vscode\\activate-pytorch-env.ps1"
-            ],
-            "icon": "terminal-powershell"
-        }
-    }
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }

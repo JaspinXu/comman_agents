@@ -1,161 +1,250 @@
 # comman_agents · 群像
 
-一个真正具备前后端运行链路的多 Agent 工作室。用户可以透明编辑每个 Agent 的身份、服装、人格、世界观和工具权限，也可以自由增删任意“特征名称 + 对应内容”，设定一段共同故事背景，再连续向全体 Agent 提问。Python 编排器会让每位 Agent 依次回答，并允许后回答者主动回应、补充或反驳其他 Agent；完整运行记录会持久化。
+`comman_agents` 是一个前后端完整的多 Agent 工作室。用户可以创建和删除人物，透明编辑每个 Agent 的身份、性格、服装、世界观、自定义特征和工具权限，并在统一故事背景下让多个 Agent 依次回答、互相补充或反驳。人物配置、对话和运行记录持久化到本地 SQLite。
 
-## 架构
+## 技术结构
 
 ```text
-React / vinext :3000
-        │  REST + NDJSON streaming
-        ▼
+浏览器 :3000
+    │ REST + NDJSON 流式事件
+    ▼
 FastAPI :8000
-        ├── Agent / Ensemble API
-        ├── Multi-Agent Orchestrator
-        ├── SoC LaaS Provider
-        ├── Local Demo Provider
-        ├── Tool Registry（MCP 扩展边界）
-        └── SQLite（人物、故事背景、提问、发言事件）
+    ├── Agent / 1v1 / 多 Agent API
+    ├── SoC LaaS Chat Completions
+    ├── Multi-Agent Orchestrator
+    ├── Tool Registry（MCP 扩展边界）
+    └── SQLite 持久化
 ```
 
-后端不依赖前端保存状态。人物配置通过 `PUT /api/agents/{id}` 写入 SQLite；每轮提问都会携带故事背景与此前对话，生成独立 Run，并逐条保存背景、问题、发言和错误事件。
+- 前端：React 19、vinext、TypeScript
+- 后端：Python、FastAPI、Pydantic、HTTPX
+- 模型：SoC LaaS OpenAI-compatible API
+- 数据：SQLite
+- Python 环境：只使用现有 Conda 环境 `pytorch_env`
 
-人物卡片形象并非隐藏配置：后端能够把职业、服装、世界观、核心特质、自定义特征、人格维度和人物色彩组合为透明的 ImageGen Prompt。自定义特征也会进入群聊和 1v1 的系统提示。当前创建新人物统一使用项目内置默认头像，不会自动发送生图请求；以后配置可用的生图模型后，仍可从人物编辑区手动重新生成。
+## 快速启动（在线 SoC API 模式）
 
-## 固定使用 pytorch_env
+### 1. 打开项目目录
 
-项目只使用已有环境：
+在 PowerShell 中执行：
+
+```powershell
+Set-Location G:\Codex\comman_agents
+```
+
+无需手动执行 `conda activate`。项目脚本会始终通过 `conda run -n pytorch_env` 使用：
 
 ```text
 C:\Users\19826\anaconda3\envs\pytorch_env
 ```
 
-不会创建 `venv`、`.venv` 或其他 Conda 环境。当前环境已具备 FastAPI、Uvicorn、HTTPX、Pydantic 和 OpenAI SDK；SQLite 使用 Python 标准库。
+项目不会创建 `venv`、`.venv` 或新的 Conda 环境。
 
-## 本地运行
+### 2. 首次安装依赖
+
+确认 `pytorch_env` 已存在：
 
 ```powershell
-cd G:\Codex\comman_agents
-powershell -ExecutionPolicy Bypass -File .\scripts\run-demo.ps1
+conda env list
 ```
 
-脚本会在 `pytorch_env` 中启动两个服务，并在退出时清理 Python 后端进程：
+安装 Python 依赖：
 
-- Web 工作室：[http://localhost:3000](http://localhost:3000)
-- Python API：[http://127.0.0.1:8000](http://127.0.0.1:8000)
-- Swagger 文档：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+```powershell
+conda run --no-capture-output -n pytorch_env python -m pip install -r .\backend\requirements.txt
+```
 
-按 `Ctrl+C` 停止。若提示端口被占用，应先停止旧的演示进程，不要重复启动。
+安装前端依赖：
 
-## 连接 SoC LaaS
+```powershell
+conda run --no-capture-output -n pytorch_env npm ci --ignore-scripts --no-audit --no-fund
+```
 
-复制示例配置：
+依赖已安装时可以跳过本步骤；启动脚本发现 `node_modules` 不存在时也会自动执行 `npm ci`。
+
+### 3. 配置 SoC LaaS API
+
+首次运行时复制配置模板：
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-编辑 `.env`：
+如果 `.env` 已存在，不要覆盖。编辑 `.env`：
 
 ```dotenv
 SOCLAAS_API_KEY=clsk_你的真实密钥
 SOCLAAS_BASE_URL=https://soclaas-api.comp.nus.edu.sg/v1
 SOCLAAS_MODEL=qwen3.6:35b
+SOCLAAS_TIMEOUT=90
 COMMAN_AGENTS_DB=data/comman_agents.db
 ```
 
-不要把真实 Key 提交到 Git。`.env` 已被忽略，只有不含秘密的 `.env.example` 会被提交。
+`.env` 已被 Git 忽略，真实密钥不会被提交。不要把 Key 写入 `.env.example`、源码或 README。
 
-重启项目后，`GET /api/health` 的结果应包含：
+### 4. 启动整个项目
 
-```json
-{
-  "provider": "soclaas",
-  "live_provider_configured": true,
-  "model": "qwen3.6:35b"
-}
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run-demo.ps1
 ```
 
-后端会使用 Bearer Token 调用：
+脚本会依次：
+
+1. 检查 Python 是否来自 `pytorch_env`。
+2. 从 `.env` 读取 SoC API Key。
+3. 启动 FastAPI 后端。
+4. 等待 `/api/health` 就绪。
+5. 启动前端开发服务器。
+
+启动成功后访问：
+
+- 工作室：http://localhost:3000/
+- API 文档：http://127.0.0.1:8000/docs
+- 健康检查：http://127.0.0.1:8000/api/health
+
+终端应显示类似：
+
+```text
+Backend provider: soclaas / qwen3.6:35b
+Starting web studio at http://localhost:3000/
+```
+
+### 5. 确认不是离线模式
+
+另开一个 PowerShell 终端：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/health |
+  Select-Object provider, live_provider_configured, model
+```
+
+在线模式的预期结果：
+
+```text
+provider                 soclaas
+live_provider_configured True
+model                    qwen3.6:35b
+```
+
+如果显示 `local-demo`，说明运行进程没有读取到 `SOCLAAS_API_KEY`。检查 `.env` 是否位于项目根目录、变量名是否正确，然后按 `Ctrl+C` 停止并重新启动。
+
+### 6. 停止项目
+
+在运行启动脚本的终端按：
+
+```text
+Ctrl+C
+```
+
+脚本会同时清理它启动的 Python 后端进程。
+
+## 常见启动问题
+
+### 端口被占用
+
+如果提示 `8000` 或 `3000` 已被使用，先停止旧的演示终端，再重新执行启动脚本。不要同时运行两个 `run-demo.ps1`。
+
+### PowerShell 显示 `(base)`
+
+这不会影响项目运行。启动和验证脚本都显式使用 `conda run -n pytorch_env`，实际 Python 路径会在启动时打印出来。可用以下命令独立确认：
+
+```powershell
+conda run --no-capture-output -n pytorch_env python -c "import sys; print(sys.executable)"
+```
+
+输出应为：
+
+```text
+C:\Users\19826\anaconda3\envs\pytorch_env\python.exe
+```
+
+### SoC API 调用失败
+
+检查模型列表和 Key 是否有效：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/models
+```
+
+后端实际调用：
 
 - `GET https://soclaas-api.comp.nus.edu.sg/v1/models`
 - `POST https://soclaas-api.comp.nus.edu.sg/v1/chat/completions`
 
-Key 未配置时，系统明确显示 `local-demo`，使用离线规则引擎完成整个编排、流式返回和持久化链路，不会伪装成真实模型回答。
+## 人物图片
 
-## 连接人物 ImageGen
+当前创建新 Agent 时统一使用固定默认图片 `/agent-images/linxi.webp`，不会自动发送生图请求。已有图片和默认图片不依赖外部图像服务。
 
-生图模型严格从环境变量读取，不再内置或回退到 GPT 模型：
+`qwen3.6:27b` 可通过 Chat Completions 接收图片并进行视觉理解，但当前 SoC API 不提供图像输出模型，因此不能用它生成头像。以后配置真正支持图像输出的服务后，可以使用：
 
 ```dotenv
-IMAGEGEN_MODEL=服务端提供的生图模型 ID
-# 仅当生图服务与 SoC LaaS 不同时才需要单独设置：
-IMAGEGEN_API_KEY=你的图像服务密钥
-IMAGEGEN_BASE_URL=https://你的图像服务/v1
+IMAGEGEN_MODEL=生图模型ID
+IMAGEGEN_API_KEY=图像服务密钥
+IMAGEGEN_BASE_URL=https://图像服务/v1
 ```
 
-`IMAGEGEN_API_KEY` 和 `IMAGEGEN_BASE_URL` 留空时会复用 `SOCLAAS_API_KEY` 与 `SOCLAAS_BASE_URL`。人物配置更新后，可在右侧“身份”页按最新配置重新生成；Prompt 与最终图片地址会一并保存在 Agent 的透明配置中。模型若被服务端标记为仅支持 `chat`，接口会明确拒绝，不会调用错误端点或暗中切换模型。
-
-## API
-
-| 方法 | 路径 | 用途 |
-|---|---|---|
-| GET | `/api/health` | Provider、模型、数据库和工具状态 |
-| GET/POST/PUT/DELETE | `/api/agents`、`/api/agents/{id}` | 创建、读取、保存和永久删除透明人物配置 |
-| POST | `/api/agents/{id}/portrait` | 根据完整人物配置生成并保存形象 |
-| POST | `/api/agents/{id}/chat` | 与指定 Agent 进行 1v1 对话 |
-| GET | `/api/models` | 获取 SoC Key 可见模型或离线模型 |
-| POST | `/api/tools/{name}/execute` | 按 Agent 授权执行本地工具 |
-| POST | `/api/runs` | 基于故事背景和历史对话，让全部 Agent 依次回答并返回 NDJSON 事件流 |
-| GET | `/api/runs` | 查询历史运行 |
-| GET | `/api/runs/{id}` | 查询一次运行及全部事件 |
-
-## MCP 与工具扩展
-
-`backend/tools.py` 是安全工具注册边界。当前提供：
-
-- `current_time`
-- `calculator`（AST 白名单计算，不使用 `eval`）
-- `memory`（声明持久化记忆能力）
-
-新的本地工具或 MCP Client 可以注册到 `ToolRegistry`。每个 Agent 只看到自己配置中授权的工具。当前 SoC Chat Completions 回合不会自动执行工具，避免模型文本触发未经确认的本地副作用；后续可在该边界加入严格 schema、审批和 MCP transport。
+若单独的 Key 和 Base URL 留空，生图模块会复用 SoC 配置，并在发现模型只有 `chat` 能力时明确拒绝，不会暗中切换到 GPT 模型。
 
 ## 完整验证
+
+执行一次全栈验证：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-local.ps1
 ```
 
-验证内容：
+验证内容包括：
 
-1. 确认 Python 来自 `pytorch_env`。
-2. 后端 SQLite、人物持久化、安全计算器、多 Agent 运行测试。
+1. `pytorch_env` Python 路径。
+2. 后端 Agent、SQLite、工具和多 Agent 编排测试。
 3. 前端 ESLint。
 4. vinext 生产构建。
-5. 服务端产品页面渲染测试。
+5. 服务端页面渲染测试。
 
-## 目录
+## 主要 API
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/api/health` | Provider、模型、数据库和工具状态 |
+| GET / POST | `/api/agents` | 查询和创建 Agent |
+| PUT / DELETE | `/api/agents/{id}` | 保存或永久删除 Agent |
+| POST | `/api/agents/{id}/chat` | 与指定 Agent 进行 1v1 对话 |
+| POST | `/api/agents/{id}/portrait` | 尝试按人物配置生成形象 |
+| GET | `/api/models` | 查询 SoC Key 可见模型 |
+| POST | `/api/tools/{name}/execute` | 按 Agent 权限执行工具 |
+| POST | `/api/runs` | 发起多 Agent 对话并返回 NDJSON 事件流 |
+| GET | `/api/runs` | 查询历史运行 |
+| GET | `/api/runs/{id}` | 查询一次运行及其全部事件 |
+
+## 项目目录
 
 ```text
 app/
-  page.tsx              工作室状态编排入口
+  page.tsx                  前端状态编排入口
   studio/
-    api.ts              统一前端 API 客户端
-    defaults.ts         离线演示数据与默认值
-    types.ts            前端领域类型
-    components/         工作室界面组件
+    api.ts                  API 客户端
+    defaults.ts             默认数据
+    types.ts                领域类型
+    components/             页面组件
 backend/
-  main.py               FastAPI 应用工厂
-  api.py                HTTP 路由
-  runtime.py            服务依赖装配
-  models.py             透明领域模型
-  repository.py         SQLite 仓库
-  providers.py          SoC LaaS / 离线 Provider
-  prompts.py            Agent 人格提示词
-  orchestrator.py       多 Agent 运行引擎
-  tools.py              MCP 工具注册边界
-  tests/                Python 后端测试
-scripts/                pytorch_env 启动与验证入口
-data/                   本地 SQLite 数据（Git 忽略）
-tests/                   前端构建与渲染测试
-worker/                  Sites / Cloudflare 前端运行入口
+  main.py                   FastAPI 应用工厂
+  api.py                    HTTP 路由
+  runtime.py                依赖装配
+  providers.py              SoC LaaS Provider
+  orchestrator.py           多 Agent 编排器
+  repository.py             SQLite 仓库
+  prompts.py                Agent 提示词
+  imagegen.py               可选图像服务边界
+  tools.py                  工具注册边界
+  tests/                    后端测试
+scripts/
+  run-demo.ps1              本地启动入口
+  verify-local.ps1          全栈验证入口
+data/                       本地 SQLite 和生成图片（Git 忽略）
+tests/                      前端构建与渲染测试
+worker/                     Sites / Cloudflare 前端入口
 ```
+
+## MCP 与工具扩展
+
+`backend/tools.py` 是本地工具注册边界，当前包含 `current_time`、`calculator` 和 `memory`。每个 Agent 只能看到自己配置中授权的工具。后续接入 MCP transport 时，应继续在该边界实施 schema 校验、授权和副作用审批。
