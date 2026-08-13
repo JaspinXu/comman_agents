@@ -60,7 +60,7 @@ export function AgentInspector({ agent, agentCount, health, tools, generatingPor
           <button type="submit" disabled={!newAttributeName.trim() || !newAttributeContent.trim() || attributes.length >= 64}>＋ 添加特征</button>
         </form>
       </section>
-      <div className="portrait-control"><span className="eyebrow">AGENT IMAGEGEN</span><b>形象来自完整人物配置</b><p>创建人物时自动生成；修改性格、服装或自定义特征后，可按最新配置重新生成。</p><button onClick={onGeneratePortrait} disabled={generatingPortrait || !health?.image_generation_configured}>{generatingPortrait ? "正在生成形象…" : health?.image_generation_configured ? "根据最新配置重新生成" : "未配置形象生成服务"}</button>{portraitError && <small>{portraitError}</small>}</div>
+      <div className="portrait-control"><span className="eyebrow">AGENT IMAGEGEN</span><b>新人物暂用默认形象</b><p>创建人物时使用固定头像；以后配置可用的生图模型后，可按人物性格、服装和自定义特征重新生成。</p><button onClick={onGeneratePortrait} disabled={generatingPortrait || !health?.image_generation_configured}>{generatingPortrait ? "正在生成形象…" : health?.image_generation_configured ? "根据最新配置重新生成" : "未配置形象生成服务"}</button>{portraitError && <small>{portraitError}</small>}</div>
       <div className="delete-agent-control"><span>删除人物</span><p>删除后，该人物不会再参与群聊，也不会在重新启动后恢复。</p><button type="button" onClick={onDelete} disabled={agentCount <= 1 || deletingAgent}>{deletingAgent ? "正在删除…" : agentCount <= 1 ? "至少保留一位人物" : `删除 ${agent.name}`}</button>{deleteError && <small>{deleteError}</small>}</div>
     </div>}
     {tab === "mind" && <div className="panel-body">

@@ -84,8 +84,19 @@ class BackendTest(unittest.TestCase):
         )
         with TestClient(create_app(build_runtime(settings))) as client:
             self.assertEqual(client.get("/api/health").status_code, 200)
-            self.assertEqual(len(client.get("/api/agents").json()), 3)
+            agents = client.get("/api/agents").json()
+            self.assertEqual(len(agents), 3)
             self.assertEqual(client.get("/api/models").json()["provider"], "local-demo")
+            newcomer = {
+                **agents[0],
+                "id": "default-portrait-agent",
+                "name": "默认头像人物",
+                "portraitUrl": None,
+                "portraitPrompt": None,
+            }
+            created = client.post("/api/agents", json=newcomer)
+            self.assertEqual(created.status_code, 201)
+            self.assertEqual(created.json()["portraitUrl"], "/agent-images/linxi.webp")
 
     def test_image_settings_reuse_soclaas_without_gpt_fallback(self) -> None:
         configured = {

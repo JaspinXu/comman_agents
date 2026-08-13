@@ -58,6 +58,8 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(source, /conversation/);
   assert.match(source, /createAgent/);
   assert.match(source, /generatePortrait/);
+  assert.doesNotMatch(source, /generatePortrait\(created\.id\)/);
+  assert.match(source, /新人物暂用默认形象/);
   assert.match(source, /customAttributes/);
   assert.match(source, /自定义特征/);
   assert.match(source, /<span>性格<\/span>/);

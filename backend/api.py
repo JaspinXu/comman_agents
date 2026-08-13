@@ -12,6 +12,9 @@ from .providers import SoCLaaSProvider
 from .runtime import Runtime
 
 
+DEFAULT_AGENT_PORTRAIT_URL = "/agent-images/linxi.webp"
+
+
 def create_router(runtime: Runtime) -> APIRouter:
     router = APIRouter()
     repository = runtime.repository
@@ -34,7 +37,10 @@ def create_router(runtime: Runtime) -> APIRouter:
     def create_agent(agent: AgentConfig) -> AgentConfig:
         if repository.get_agent(agent.id):
             raise HTTPException(status_code=409, detail="Agent ID already exists")
-        return repository.save_agent(agent)
+        agent_with_portrait = agent if agent.portrait_url else agent.model_copy(
+            update={"portrait_url": DEFAULT_AGENT_PORTRAIT_URL}
+        )
+        return repository.save_agent(agent_with_portrait)
 
     @router.put("/api/agents/{agent_id}", response_model=AgentConfig)
     def update_agent(agent_id: str, agent: AgentConfig) -> AgentConfig:

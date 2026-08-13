@@ -173,7 +173,6 @@ export default function Home() {
       setSelectedId(created.id);
       setNewAgent(blankAgent);
       setCreatingAgent(false);
-      if (health?.image_generation_configured) void generatePortrait(created.id);
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : "创建失败，请检查 Python 后端。");
     }
