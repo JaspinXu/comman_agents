@@ -98,7 +98,7 @@ IMAGEGEN_MODEL=gpt-image-2
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/api/health` | Provider、模型、数据库和工具状态 |
-| GET/POST/PUT | `/api/agents`、`/api/agents/{id}` | 创建、读取和保存透明人物配置 |
+| GET/POST/PUT/DELETE | `/api/agents`、`/api/agents/{id}` | 创建、读取、保存和永久删除透明人物配置 |
 | POST | `/api/agents/{id}/portrait` | 根据完整人物配置生成并保存形象 |
 | POST | `/api/agents/{id}/chat` | 与指定 Agent 进行 1v1 对话 |
 | GET | `/api/models` | 获取 SoC Key 可见模型或离线模型 |

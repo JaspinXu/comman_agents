@@ -41,6 +41,16 @@ class BackendTest(unittest.TestCase):
         self.assertEqual(self.repository.get_agent("newcomer").name, "新成员")
         self.assertEqual(len(self.repository.list_agents()), 4)
 
+    def test_agent_deletion_survives_restart_and_keeps_one_agent(self) -> None:
+        self.assertTrue(self.repository.delete_agent("linxi"))
+        self.assertIsNone(self.repository.get_agent("linxi"))
+        self.repository.initialize()
+        self.assertIsNone(self.repository.get_agent("linxi"))
+        self.assertTrue(self.repository.delete_agent("chengye"))
+        with self.assertRaises(ValueError):
+            self.repository.delete_agent("shenzhi")
+        self.assertIsNotNone(self.repository.get_agent("shenzhi"))
+
     def test_safe_calculator(self) -> None:
         tools = ToolRegistry()
         self.assertEqual(tools.execute("calculator", {"expression": "(12 + 3) * 2"}), "30")

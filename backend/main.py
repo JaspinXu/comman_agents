@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from .config import Settings
 from .imagegen import ImageGenerationError, PortraitGenerator
@@ -36,7 +36,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=False,
-    allow_methods=["GET", "PUT", "POST"],
+    allow_methods=["GET", "PUT", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
@@ -68,7 +68,26 @@ def create_agent(agent: AgentConfig) -> AgentConfig:
 def update_agent(agent_id: str, agent: AgentConfig) -> AgentConfig:
     if agent_id != agent.id:
         raise HTTPException(status_code=400, detail="Path and payload agent IDs differ")
+    if not repository.get_agent(agent_id):
+        raise HTTPException(status_code=404, detail="Agent not found")
     return repository.save_agent(agent)
+
+
+@app.delete("/api/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_agent(agent_id: str) -> Response:
+    agent = repository.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    try:
+        repository.delete_agent(agent_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if agent.portrait_url and agent.portrait_url.startswith("/api/agent-images/"):
+        image_name = Path(agent.portrait_url).name
+        image_path = settings.agent_image_path / image_name
+        if image_path.is_file():
+            image_path.unlink()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.post("/api/agents/{agent_id}/portrait", response_model=AgentConfig)

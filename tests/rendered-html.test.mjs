@@ -57,6 +57,9 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(page, /customAttributes/);
   assert.match(page, /addCustomAttribute/);
   assert.match(page, /自定义特征/);
+  assert.match(page, /deleteSelectedAgent/);
+  assert.match(page, /method:\s*"DELETE"/);
+  assert.match(page, /删除人物/);
   assert.match(page, /sendChat/);
   assert.match(page, /1v1 对话/);
   assert.match(page, /\/portrait/);

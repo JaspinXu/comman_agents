@@ -43,6 +43,9 @@ class Repository:
                 CREATE TABLE IF NOT EXISTS agents (
                     id TEXT PRIMARY KEY, config_json TEXT NOT NULL, updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS agent_tombstones (
+                    id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS runs (
                     id TEXT PRIMARY KEY, story_background TEXT NOT NULL, prompt TEXT NOT NULL,
                     provider TEXT NOT NULL, model TEXT NOT NULL, status TEXT NOT NULL,
@@ -63,6 +66,9 @@ class Repository:
                 db.execute("ALTER TABLE runs ADD COLUMN story_background TEXT NOT NULL DEFAULT ''")
             now = utc_now().isoformat()
             for agent in SEED_AGENTS:
+                deleted = db.execute("SELECT 1 FROM agent_tombstones WHERE id = ?", (agent.id,)).fetchone()
+                if deleted:
+                    continue
                 db.execute(
                     "INSERT OR IGNORE INTO agents VALUES (?, ?, ?)",
                     (agent.id, agent.model_dump_json(by_alias=True), now),
@@ -96,11 +102,27 @@ class Repository:
 
     def save_agent(self, agent: AgentConfig) -> AgentConfig:
         with self._lock, self.connect() as db:
+            db.execute("DELETE FROM agent_tombstones WHERE id = ?", (agent.id,))
             db.execute(
                 "INSERT INTO agents VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET config_json=excluded.config_json, updated_at=excluded.updated_at",
                 (agent.id, agent.model_dump_json(by_alias=True), utc_now().isoformat()),
             )
         return agent
+
+    def delete_agent(self, agent_id: str) -> bool:
+        with self._lock, self.connect() as db:
+            exists = db.execute("SELECT 1 FROM agents WHERE id = ?", (agent_id,)).fetchone()
+            if not exists:
+                return False
+            remaining = db.execute("SELECT COUNT(*) AS count FROM agents").fetchone()["count"]
+            if remaining <= 1:
+                raise ValueError("At least one Agent must remain")
+            db.execute("DELETE FROM agents WHERE id = ?", (agent_id,))
+            db.execute(
+                "INSERT INTO agent_tombstones (id, deleted_at) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at",
+                (agent_id, utc_now().isoformat()),
+            )
+        return True
 
     def create_run(self, run_id: str, background: str, prompt: str, provider: str, model: str) -> None:
         with self._lock, self.connect() as db:

@@ -51,6 +51,8 @@ export default function Home() {
   const [createError, setCreateError] = useState("");
   const [generatingPortraits, setGeneratingPortraits] = useState<string[]>([]);
   const [portraitErrors, setPortraitErrors] = useState<Record<string, string>>({});
+  const [deleteError, setDeleteError] = useState("");
+  const [deletingAgent, setDeletingAgent] = useState(false);
   const [chatAgentId, setChatAgentId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -114,6 +116,30 @@ export default function Home() {
     updateSelected({ customAttributes: [...selectedCustomAttributes, { name, content }] });
     setNewAttributeName("");
     setNewAttributeContent("");
+  }
+
+  async function deleteSelectedAgent() {
+    if (agents.length <= 1 || deletingAgent) return;
+    if (!window.confirm(`确定删除 ${selected.name} 吗？人物配置和生成形象将被永久删除。`)) return;
+    setDeleteError("");
+    setDeletingAgent(true);
+    window.clearTimeout(saveTimers.current[selected.id]);
+    delete saveTimers.current[selected.id];
+    try {
+      const response = await fetch(`${apiBase()}/api/agents/${selected.id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.detail ?? "删除失败");
+      const remaining = agents.filter((agent) => agent.id !== selected.id);
+      setAgents(remaining);
+      setSelectedId(remaining[0].id);
+      if (chatAgentId === selected.id) setChatAgentId(null);
+      setPortraitErrors((current) => { const next = { ...current }; delete next[selected.id]; return next; });
+      setGeneratingPortraits((current) => current.filter((id) => id !== selected.id));
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "删除失败");
+      persistAgent(selected);
+    } finally {
+      setDeletingAgent(false);
+    }
   }
 
   function portraitSrc(agent: Agent): string {
@@ -280,6 +306,7 @@ export default function Home() {
             </form>
           </section>
           <div className="portrait-control"><span className="eyebrow">AGENT IMAGEGEN</span><b>形象来自完整人物配置</b><p>创建人物时自动生成；修改性格、服装或自定义特征后，可按最新配置重新生成。</p><button onClick={() => void generatePortrait(selected.id)} disabled={generatingPortraits.includes(selected.id)}>{generatingPortraits.includes(selected.id) ? "正在生成形象…" : "根据最新配置重新生成"}</button>{portraitErrors[selected.id] && <small>{portraitErrors[selected.id]}</small>}</div>
+          <div className="delete-agent-control"><span>删除人物</span><p>删除后，该人物不会再参与群聊，也不会在重新启动后恢复。</p><button type="button" onClick={() => void deleteSelectedAgent()} disabled={agents.length <= 1 || deletingAgent}>{deletingAgent ? "正在删除…" : agents.length <= 1 ? "至少保留一位人物" : `删除 ${selected.name}`}</button>{deleteError && <small>{deleteError}</small>}</div>
         </div>}
         {tab === "mind" && <div className="panel-body"><label className="field"><span>世界观 / 判断原则</span><textarea className="tall" value={selected.worldview} onChange={(event) => updateSelected({ worldview: event.target.value })} /></label><div className="slider-group">{(Object.keys(sliderLabels) as (keyof Sliders)[]).map((key) => <label className="slider" key={key}><span>{sliderLabels[key]} <b>{selected.sliders[key]}</b></span><input type="range" min="0" max="100" value={selected.sliders[key]} onChange={(event) => updateSelected({ sliders: { ...selected.sliders, [key]: Number(event.target.value) } })} /></label>)}</div><div className="trait-editor"><span>核心特质</span><div>{selected.traits.map((trait) => <button key={trait} onClick={() => updateSelected({ traits: selected.traits.filter((item) => item !== trait) })}>{trait} ×</button>)}</div><form onSubmit={(event) => { event.preventDefault(); if (newTrait.trim()) { updateSelected({ traits: [...selected.traits, newTrait.trim()] }); setNewTrait(""); } }}><input placeholder="添加一个特质" value={newTrait} onChange={(event) => setNewTrait(event.target.value)} /><button>＋</button></form></div></div>}
         {tab === "tools" && <div className="panel-body"><div className="tool-summary"><span><b>{selected.tools.length}</b> 个能力已授权</span><small>Python 工具注册边界</small></div><div className="tool-list">{tools.map((tool) => <button key={tool.id} className={selected.tools.includes(tool.id) ? "enabled" : ""} onClick={() => toggleTool(tool.id)}><i>{tool.id.slice(0, 2)}</i><span><b>{tool.label}</b><small>{tool.uri}</small></span><em>{selected.tools.includes(tool.id) ? "已允许" : "未授权"}</em></button>)}</div></div>}
