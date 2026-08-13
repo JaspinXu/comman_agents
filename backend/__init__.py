@@ -1,1 +1,1 @@
-"""Persona Lab backend package."""
+"""comman_agents backend package."""

@@ -69,7 +69,7 @@ export default function Home() {
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0];
   const activeScene = scenes.find((scene) => scene.id === sceneId) ?? scenes[0];
   const tools = health?.tools ?? fallbackTools;
-  const jsonConfig = useMemo(() => JSON.stringify({ schema: "persona-lab/v1", agent: selected }, null, 2), [selected]);
+  const jsonConfig = useMemo(() => JSON.stringify({ schema: "comman_agents/v1", agent: selected }, null, 2), [selected]);
 
   function persistAgent(agent: Agent) {
     window.clearTimeout(saveTimers.current[agent.id]);
@@ -122,14 +122,14 @@ export default function Home() {
   }
 
   function exportConfig() {
-    const blob = new Blob([JSON.stringify({ schema: "persona-lab/v1", agents, scene: sceneId }, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify({ schema: "comman_agents/v1", agents, scene: sceneId }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
-    anchor.href = url; anchor.download = "persona-lab.config.json"; anchor.click(); URL.revokeObjectURL(url);
+    anchor.href = url; anchor.download = "comman_agents.config.json"; anchor.click(); URL.revokeObjectURL(url);
   }
 
   return <main className="app-shell">
     <header className="topbar">
-      <div className="brand-block"><span className="brand-mark">群像</span><div><strong>PERSONA LAB</strong><small>AGENT COMPOSITION STUDIO</small></div></div>
+      <div className="brand-block"><span className="brand-mark">群像</span><div><strong>comman_agents</strong><small>MULTI-AGENT COMPOSITION STUDIO</small></div></div>
       <nav className="primary-nav" aria-label="主导航"><button className="nav-item active">工作室</button><button className="nav-item">场景库</button><button className="nav-item">运行记录</button></nav>
       <div className="top-actions"><div className={`provider-pill ${health ? "online" : ""}`}><i /> {health?.provider === "soclaas" ? "SoC LaaS" : "Local Engine"} <span>{health?.model ?? "connecting"}</span></div><a className="icon-button api-doc" href="http://127.0.0.1:8000/docs" target="_blank" rel="noreferrer" aria-label="打开后端 API 文档">API</a><button className="avatar-mini">ZB</button></div>
     </header>
@@ -156,7 +156,7 @@ export default function Home() {
         {tab === "identity" && <div className="panel-body"><label className="field"><span>角色 / 职业</span><input value={selected.role} onChange={(event) => updateSelected({ role: event.target.value })} /></label><label className="field"><span>外观与服装</span><textarea value={selected.outfit} onChange={(event) => updateSelected({ outfit: event.target.value })} /></label><label className="field"><span>代表性表达</span><textarea value={selected.quote} onChange={(event) => updateSelected({ quote: event.target.value })} /></label><div className="callout"><b>服务端透明持久化</b><p>字段通过 PUT /api/agents/:id 写入 SQLite，没有隐藏人格层。</p></div></div>}
         {tab === "mind" && <div className="panel-body"><label className="field"><span>世界观 / 判断原则</span><textarea className="tall" value={selected.worldview} onChange={(event) => updateSelected({ worldview: event.target.value })} /></label><div className="slider-group">{(Object.keys(sliderLabels) as (keyof Sliders)[]).map((key) => <label className="slider" key={key}><span>{sliderLabels[key]} <b>{selected.sliders[key]}</b></span><input type="range" min="0" max="100" value={selected.sliders[key]} onChange={(event) => updateSelected({ sliders: { ...selected.sliders, [key]: Number(event.target.value) } })} /></label>)}</div><div className="trait-editor"><span>核心特质</span><div>{selected.traits.map((trait) => <button key={trait} onClick={() => updateSelected({ traits: selected.traits.filter((item) => item !== trait) })}>{trait} ×</button>)}</div><form onSubmit={(event) => { event.preventDefault(); if (newTrait.trim()) { updateSelected({ traits: [...selected.traits, newTrait.trim()] }); setNewTrait(""); } }}><input placeholder="添加一个特质" value={newTrait} onChange={(event) => setNewTrait(event.target.value)} /><button>＋</button></form></div></div>}
         {tab === "tools" && <div className="panel-body"><div className="tool-summary"><span><b>{selected.tools.length}</b> 个能力已授权</span><small>Python 工具注册边界</small></div><div className="tool-list">{tools.map((tool) => <button key={tool.id} className={selected.tools.includes(tool.id) ? "enabled" : ""} onClick={() => toggleTool(tool.id)}><i>{tool.id.slice(0, 2)}</i><span><b>{tool.label}</b><small>{tool.uri}</small></span><em>{selected.tools.includes(tool.id) ? "已允许" : "未授权"}</em></button>)}</div></div>}
-        {tab === "json" && <div className="panel-body json-panel"><div className="json-head"><span>persona.config.json</span><button onClick={() => navigator.clipboard?.writeText(jsonConfig)}>复制</button></div><pre>{jsonConfig}</pre><p>界面中的每一项都能在这里找到对应字段。</p></div>}
+        {tab === "json" && <div className="panel-body json-panel"><div className="json-head"><span>comman_agents.config.json</span><button onClick={() => navigator.clipboard?.writeText(jsonConfig)}>复制</button></div><pre>{jsonConfig}</pre><p>界面中的每一项都能在这里找到对应字段。</p></div>}
         <div className="provider-card"><div><span className="status-dot" /><b>{health?.provider === "soclaas" ? "SoC LaaS 已连接" : "离线模式"}</b></div><code>Python :8000 → {health?.model ?? "等待连接"}</code><p>{health?.live_provider_configured ? "真实模型推理 · SQLite 运行记录 · 本地工具边界" : "设置 SOCLAAS_API_KEY 后重启即可启用真实推理"}</p></div>
       </aside>
     </section>

@@ -28,7 +28,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Persona Lab API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="comman_agents API", version="0.2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -71,7 +71,7 @@ async def list_models():
             return {"provider": provider.name, "data": await provider.list_models()}
         except Exception as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"provider": provider.name, "data": [{"id": provider.model, "owned_by": "persona-lab", "description": "离线规则演示；配置 API Key 后自动切换 SoC LaaS。"}]}
+    return {"provider": provider.name, "data": [{"id": provider.model, "owned_by": "comman_agents", "description": "离线规则演示；配置 API Key 后自动切换 SoC LaaS。"}]}
 
 
 @app.post("/api/tools/{tool_name}/execute", response_model=ToolExecuteResponse)
@@ -117,4 +117,4 @@ def get_run(run_id: str) -> RunSummary:
 
 @app.get("/")
 def root():
-    return {"name": "Persona Lab API", "docs": "/docs", "health": "/api/health"}
+    return {"name": "comman_agents API", "docs": "/docs", "health": "/api/health"}

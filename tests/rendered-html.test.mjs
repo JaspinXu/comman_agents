@@ -14,14 +14,14 @@ async function render() {
   );
 }
 
-test("server-renders the Persona Lab demo", async () => {
+test("server-renders the comman_agents demo", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>群像 · Persona Lab<\/title>/i);
-  assert.match(html, /PERSONA LAB/);
+  assert.match(html, /<title>comman_agents · 群像<\/title>/i);
+  assert.match(html, /comman_agents/);
   assert.match(html, /产品共创小组/);
   assert.match(html, /Local Engine/);
   assert.match(html, /Python 编排器驱动/);
@@ -39,7 +39,7 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /schema:\s*"persona-lab\/v1"/);
+  assert.match(page, /schema:\s*"comman_agents\/v1"/);
   assert.match(page, /\/api\/health/);
   assert.match(page, /\/api\/agents/);
   assert.match(page, /\/api\/runs/);
@@ -48,7 +48,7 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(page, /exportConfig/);
   assert.match(page, /toggleTool/);
   assert.match(page, /runScene/);
-  assert.match(layout, /群像 · Persona Lab/);
-  assert.match(packageJson, /"name": "persona-lab"/);
+  assert.match(layout, /comman_agents · 群像/);
+  assert.match(packageJson, /"name": "comman_agents"/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
