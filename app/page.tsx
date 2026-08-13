@@ -47,7 +47,6 @@ export default function Home() {
   const [tab, setTab] = useState<"identity" | "mind" | "tools" | "json">("identity");
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [prompt, setPrompt] = useState("我们应该如何验证这个产品需求，并形成下一步行动？");
-  const [notice, setNotice] = useState("正在连接 Python 后端…");
   const [running, setRunning] = useState(false);
   const [newTrait, setNewTrait] = useState("");
   const [creatingAgent, setCreatingAgent] = useState(false);
@@ -64,10 +63,7 @@ export default function Home() {
     ]).then(([healthData, agentData, sceneData]: [Health, Agent[], Scene[]]) => {
       if (!active) return;
       setHealth(healthData); setAgents(agentData); setScenes(sceneData);
-      setNotice(healthData.live_provider_configured ? "SoC LaaS 已连接" : "离线规则引擎 · 配置 Key 后自动切换 SoC");
-    }).catch(() => {
-      if (active) setNotice("Python 后端未连接 · 请使用 run-demo.ps1 启动");
-    });
+    }).catch(() => { /* The provider badge remains in its connecting state. */ });
     return () => { active = false; };
   }, []);
 
@@ -82,15 +78,13 @@ export default function Home() {
       try {
         const response = await fetch(`${apiBase()}/api/agents/${agent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agent) });
         if (!response.ok) throw new Error(await response.text());
-        setNotice("人物配置已保存到 SQLite");
-      } catch { setNotice("保存失败：Python 后端未连接"); }
+      } catch { /* A later edit retries persistence. */ }
     }, 450);
   }
 
   function updateSelected(patch: Partial<Agent>) {
     const updated = { ...selected, ...patch };
     setAgents((current) => current.map((agent) => agent.id === selected.id ? updated : agent));
-    setNotice("正在保存透明配置…");
     persistAgent(updated);
   }
 
@@ -99,7 +93,7 @@ export default function Home() {
   }
 
   async function runScene() {
-    setEvents([]); setRunning(true); setNotice("多 Agent 场景运行中…");
+    setEvents([]); setRunning(true);
     try {
       const response = await fetch(`${apiBase()}/api/runs`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -116,13 +110,11 @@ export default function Home() {
         for (const line of lines) if (line.trim()) {
           const event = JSON.parse(line) as RunEvent;
           setEvents((current) => [...current, event]);
-          if (event.type === "error") setNotice(`运行失败：${event.content}`);
         }
         if (done) break;
       }
-      setNotice("运行已持久化，可通过 API 查询记录");
     } catch (error) {
-      setNotice(`无法运行：${error instanceof Error ? error.message : "未知错误"}`);
+      setEvents((current) => [...current, { type: "error", content: `无法运行：${error instanceof Error ? error.message : "未知错误"}` }]);
     } finally { setRunning(false); }
   }
 
@@ -155,16 +147,9 @@ export default function Home() {
       setTab("identity");
       setNewAgent(blankAgent);
       setCreatingAgent(false);
-      setNotice(`${created.name} 已创建并保存到 SQLite`);
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : "创建失败，请检查 Python 后端。");
     }
-  }
-
-  function exportConfig() {
-    const blob = new Blob([JSON.stringify({ schema: "comman_agents/v1", agents, scene: sceneId }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
-    anchor.href = url; anchor.download = "comman_agents.config.json"; anchor.click(); URL.revokeObjectURL(url);
   }
 
   return <main className="app-shell">
@@ -178,8 +163,6 @@ export default function Home() {
         <div className="rail-heading"><span>你的成员</span><b>{agents.length}</b></div>
         <div className="agent-rail-list">{agents.map((agent) => <button key={agent.id} className={`rail-agent ${agent.id === selected.id ? "selected" : ""}`} onClick={() => setSelectedId(agent.id)}><span className="rail-avatar" style={{ background: agent.color }}>{agent.initials}</span><span><strong>{agent.name}</strong><small>{agent.role}</small></span><i aria-hidden="true" /></button>)}</div>
         <button className="add-agent" onClick={() => setCreatingAgent(true)}><span>＋</span> 添加新人物</button>
-        <div className="rail-note"><span className="eyebrow">运行状态</span><p>{notice}</p></div>
-        <button className="export-button" onClick={exportConfig}>↓ 导出全部配置</button>
       </aside>
       <section className="canvas">
         <div className="canvas-head"><div><span className="eyebrow">ENSEMBLE / LIVE</span><h1>产品共创小组</h1><p>由 Python 编排器驱动，运行与发言持久化到 SQLite。</p></div><div className="presence"><span className="stacked-avatars">{agents.map((agent) => <i key={agent.id} style={{ background: agent.color }}>{agent.initials}</i>)}</span><b>{health ? "后端在线" : "等待后端"}</b></div></div>
