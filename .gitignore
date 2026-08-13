@@ -5,6 +5,8 @@
 /.venv/
 /venv/
 /.conda/
+__pycache__/
+*.py[cod]
 /.pnp
 .pnp.*
 .yarn/*
