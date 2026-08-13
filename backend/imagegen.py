@@ -16,12 +16,18 @@ class ImageGenerationError(RuntimeError):
 
 def portrait_prompt(agent: AgentConfig) -> str:
     traits = "、".join(agent.traits) or "尚未设置"
+    custom_attributes = "; ".join(
+        f"{item.name.strip()}: {item.content.strip()}"
+        for item in agent.custom_attributes
+        if item.name.strip() or item.content.strip()
+    ) or "none"
     return f"""Use case: photorealistic-natural
 Asset type: vertical portrait for an AI agent profile card
 Primary request: create a coherent portrait of {agent.name}, a {agent.role}, expressing the complete configured personality
 Subject identity: Chinese adult; role is {agent.role}; core traits are {traits}
 Clothing and appearance: {agent.outfit}
 Character direction: {agent.worldview}
+User-defined characteristics: {custom_attributes}
 Personality dimensions: autonomy {agent.sliders.autonomy}/100, empathy {agent.sliders.empathy}/100, creativity {agent.sliders.creativity}/100, rigor {agent.sliders.rigor}/100
 Style/medium: premium contemporary editorial portrait photography, realistic skin and fabric texture
 Composition/framing: vertical 4:5 waist-up portrait, one person only, centered, natural eye contact

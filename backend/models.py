@@ -13,6 +13,11 @@ class Sliders(BaseModel):
     rigor: int = Field(ge=0, le=100)
 
 
+class CustomAttribute(BaseModel):
+    name: str = Field(max_length=80)
+    content: str = Field(max_length=2000)
+
+
 class AgentConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -28,6 +33,7 @@ class AgentConfig(BaseModel):
     traits: list[str] = Field(default_factory=list, max_length=24)
     sliders: Sliders
     tools: list[str] = Field(default_factory=list, max_length=32)
+    custom_attributes: list[CustomAttribute] = Field(default_factory=list, alias="customAttributes", max_length=64)
     portrait_url: str | None = Field(default=None, alias="portraitUrl", max_length=1000)
     portrait_prompt: str | None = Field(default=None, alias="portraitPrompt", max_length=5000)
 

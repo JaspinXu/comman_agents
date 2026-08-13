@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type Sliders = { autonomy: number; empathy: number; creativity: number; rigor: number };
+type CustomAttribute = { name: string; content: string };
 type Agent = {
   id: string; name: string; englishName: string; role: string; color: string;
   initials: string; quote: string; outfit: string; worldview: string;
-  traits: string[]; sliders: Sliders; tools: string[]; portraitUrl?: string | null; portraitPrompt?: string | null;
+  traits: string[]; sliders: Sliders; tools: string[]; customAttributes: CustomAttribute[]; portraitUrl?: string | null; portraitPrompt?: string | null;
 };
 type ToolManifest = { id: string; label: string; description: string; uri: string };
 type Health = { status: string; provider: string; live_provider_configured: boolean; model: string; tools: ToolManifest[]; image_provider: string; image_generation_configured: boolean };
@@ -16,9 +17,9 @@ type ChatMessage = { role: "user" | "assistant"; content: string };
 type EnsembleLine = { speaker_type: "user" | "agent" | "system"; name: string; content: string; agent_id?: string };
 
 const seedAgents: Agent[] = [
-  { id: "linxi", name: "林溪", englishName: "LIN XI", role: "用户研究员", color: "#3155d9", initials: "溪", quote: "我关注真实的用户需求，用证据推动决策。", outfit: "钴蓝针织背心、白衬衫、银色耳钉", worldview: "好问题比过早的答案更有价值。证据优先，但不忽略人的感受。", traits: ["好奇", "严谨", "善于提问"], sliders: { autonomy: 72, empathy: 84, creativity: 61, rigor: 88 }, tools: ["current_time", "calculator", "memory"], portraitUrl: "/agent-images/linxi.webp" },
-  { id: "chengye", name: "程野", englishName: "CHENG YE", role: "系统架构师", color: "#24231f", initials: "野", quote: "我设计可扩展的系统，让复杂变得有序。", outfit: "石墨色工装衬衫、圆框眼镜、机械表", worldview: "所有抽象都应当经得起边界条件的追问，可靠性也是一种善意。", traits: ["系统性", "可靠", "长远思维"], sliders: { autonomy: 86, empathy: 46, creativity: 68, rigor: 94 }, tools: ["calculator", "memory"], portraitUrl: "/agent-images/chengye.webp" },
-  { id: "shenzhi", name: "沈知", englishName: "SHEN ZHI", role: "共创引导者", color: "#ef5b38", initials: "知", quote: "我让每个人的想法被看见，一起创造更好的答案。", outfit: "朱红围巾、米白亚麻上衣、金色耳环", worldview: "分歧不是噪音，而是尚未被组织起来的创造力。", traits: ["共情", "开放", "激发创意"], sliders: { autonomy: 64, empathy: 95, creativity: 91, rigor: 58 }, tools: ["current_time", "memory"], portraitUrl: "/agent-images/shenzhi.webp" },
+  { id: "linxi", name: "林溪", englishName: "LIN XI", role: "用户研究员", color: "#3155d9", initials: "溪", quote: "我关注真实的用户需求，用证据推动决策。", outfit: "钴蓝针织背心、白衬衫、银色耳钉", worldview: "好问题比过早的答案更有价值。证据优先，但不忽略人的感受。", traits: ["好奇", "严谨", "善于提问"], sliders: { autonomy: 72, empathy: 84, creativity: 61, rigor: 88 }, tools: ["current_time", "calculator", "memory"], customAttributes: [{ name: "沟通方式", content: "先追问事实与证据，再给出判断。" }], portraitUrl: "/agent-images/linxi.webp" },
+  { id: "chengye", name: "程野", englishName: "CHENG YE", role: "系统架构师", color: "#24231f", initials: "野", quote: "我设计可扩展的系统，让复杂变得有序。", outfit: "石墨色工装衬衫、圆框眼镜、机械表", worldview: "所有抽象都应当经得起边界条件的追问，可靠性也是一种善意。", traits: ["系统性", "可靠", "长远思维"], sliders: { autonomy: 86, empathy: 46, creativity: 68, rigor: 94 }, tools: ["calculator", "memory"], customAttributes: [{ name: "风险偏好", content: "宁可降低速度，也不接受不可恢复的系统性风险。" }], portraitUrl: "/agent-images/chengye.webp" },
+  { id: "shenzhi", name: "沈知", englishName: "SHEN ZHI", role: "共创引导者", color: "#ef5b38", initials: "知", quote: "我让每个人的想法被看见，一起创造更好的答案。", outfit: "朱红围巾、米白亚麻上衣、金色耳环", worldview: "分歧不是噪音，而是尚未被组织起来的创造力。", traits: ["共情", "开放", "激发创意"], sliders: { autonomy: 64, empathy: 95, creativity: 91, rigor: 58 }, tools: ["current_time", "memory"], customAttributes: [{ name: "冲突处理", content: "先让分歧被完整表达，再寻找能够共同验证的部分。" }], portraitUrl: "/agent-images/shenzhi.webp" },
 ];
 const fallbackTools: ToolManifest[] = [
   { id: "current_time", label: "Current Time", description: "返回当前 UTC 时间", uri: "mcp://local/current_time" },
@@ -43,6 +44,8 @@ export default function Home() {
   const [ensembleConversation, setEnsembleConversation] = useState<EnsembleLine[]>([]);
   const [running, setRunning] = useState(false);
   const [newTrait, setNewTrait] = useState("");
+  const [newAttributeName, setNewAttributeName] = useState("");
+  const [newAttributeContent, setNewAttributeContent] = useState("");
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [newAgent, setNewAgent] = useState<NewAgentDraft>(blankAgent);
   const [createError, setCreateError] = useState("");
@@ -68,6 +71,7 @@ export default function Home() {
   }, []);
 
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0];
+  const selectedCustomAttributes = selected.customAttributes ?? [];
   const chatAgent = agents.find((agent) => agent.id === chatAgentId) ?? null;
   const tools = health?.tools ?? fallbackTools;
   const jsonConfig = useMemo(() => JSON.stringify({ schema: "comman_agents/v1", agent: selected }, null, 2), [selected]);
@@ -90,6 +94,26 @@ export default function Home() {
 
   function toggleTool(id: string) {
     updateSelected({ tools: selected.tools.includes(id) ? selected.tools.filter((tool) => tool !== id) : [...selected.tools, id] });
+  }
+
+  function updateCustomAttribute(index: number, patch: Partial<CustomAttribute>) {
+    updateSelected({
+      customAttributes: selectedCustomAttributes.map((attribute, currentIndex) => currentIndex === index ? { ...attribute, ...patch } : attribute),
+    });
+  }
+
+  function removeCustomAttribute(index: number) {
+    updateSelected({ customAttributes: selectedCustomAttributes.filter((_, currentIndex) => currentIndex !== index) });
+  }
+
+  function addCustomAttribute(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newAttributeName.trim();
+    const content = newAttributeContent.trim();
+    if (!name || !content || selectedCustomAttributes.length >= 64) return;
+    updateSelected({ customAttributes: [...selectedCustomAttributes, { name, content }] });
+    setNewAttributeName("");
+    setNewAttributeContent("");
   }
 
   function portraitSrc(agent: Agent): string {
@@ -196,6 +220,7 @@ export default function Home() {
       traits: ["独立", "开放"],
       sliders: { autonomy: 70, empathy: 65, creativity: 70, rigor: 70 },
       tools: ["memory"],
+      customAttributes: [],
     };
     try {
       const response = await fetch(`${apiBase()}/api/agents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agent) });
@@ -237,7 +262,25 @@ export default function Home() {
       <aside className="inspector">
         <div className="inspector-head"><div><span className="inspector-avatar" style={{ background: selected.color }}>{selected.initials}</span><span><strong>{selected.name}</strong><small>{selected.role}</small></span></div><span className="db-mark">SQLite</span></div>
         <div className="tabs" role="tablist"><button className={tab === "identity" ? "active" : ""} onClick={() => setTab("identity")}>身份</button><button className={tab === "mind" ? "active" : ""} onClick={() => setTab("mind")}>内心</button><button className={tab === "tools" ? "active" : ""} onClick={() => setTab("tools")}>能力</button><button className={tab === "json" ? "active" : ""} onClick={() => setTab("json")}>{"{ }"}</button></div>
-        {tab === "identity" && <div className="panel-body"><label className="field"><span>角色 / 职业</span><input value={selected.role} onChange={(event) => updateSelected({ role: event.target.value })} /></label><label className="field"><span>外观与服装</span><textarea value={selected.outfit} onChange={(event) => updateSelected({ outfit: event.target.value })} /></label><label className="field"><span>代表性表达</span><textarea value={selected.quote} onChange={(event) => updateSelected({ quote: event.target.value })} /></label><div className="portrait-control"><span className="eyebrow">AGENT IMAGEGEN</span><b>形象来自完整人物配置</b><p>创建人物时自动生成；修改性格或服装后，可按最新配置重新生成。</p><button onClick={() => void generatePortrait(selected.id)} disabled={generatingPortraits.includes(selected.id)}>{generatingPortraits.includes(selected.id) ? "正在生成形象…" : "根据最新配置重新生成"}</button>{portraitErrors[selected.id] && <small>{portraitErrors[selected.id]}</small>}</div></div>}
+        {tab === "identity" && <div className="panel-body">
+          <label className="field"><span>角色 / 职业</span><input value={selected.role} onChange={(event) => updateSelected({ role: event.target.value })} /></label>
+          <label className="field"><span>外观与服装</span><textarea value={selected.outfit} onChange={(event) => updateSelected({ outfit: event.target.value })} /></label>
+          <label className="field"><span>代表性表达</span><textarea value={selected.quote} onChange={(event) => updateSelected({ quote: event.target.value })} /></label>
+          <section className="custom-attribute-editor">
+            <div className="custom-attribute-head"><span><b>自定义特征</b><small>自由添加任何特征名称及其对应内容</small></span><em>{selectedCustomAttributes.length}/64</em></div>
+            {selectedCustomAttributes.length > 0 && <div className="custom-attribute-list">{selectedCustomAttributes.map((attribute, index) => <div className="custom-attribute-row" key={index}>
+              <input aria-label={`特征 ${index + 1} 名称`} value={attribute.name} onChange={(event) => updateCustomAttribute(index, { name: event.target.value })} placeholder="特征名称" />
+              <textarea aria-label={`特征 ${index + 1} 内容`} value={attribute.content} onChange={(event) => updateCustomAttribute(index, { content: event.target.value })} placeholder="这个特征的具体内容" />
+              <button type="button" onClick={() => removeCustomAttribute(index)} aria-label={`删除特征 ${attribute.name || index + 1}`}>×</button>
+            </div>)}</div>}
+            <form className="custom-attribute-form" onSubmit={addCustomAttribute}>
+              <input value={newAttributeName} onChange={(event) => setNewAttributeName(event.target.value)} placeholder="特征名称，如：说话习惯" aria-label="新特征名称" />
+              <textarea value={newAttributeContent} onChange={(event) => setNewAttributeContent(event.target.value)} placeholder="填写这个特征对应的内容…" aria-label="新特征内容" />
+              <button type="submit" disabled={!newAttributeName.trim() || !newAttributeContent.trim() || selectedCustomAttributes.length >= 64}>＋ 添加特征</button>
+            </form>
+          </section>
+          <div className="portrait-control"><span className="eyebrow">AGENT IMAGEGEN</span><b>形象来自完整人物配置</b><p>创建人物时自动生成；修改性格、服装或自定义特征后，可按最新配置重新生成。</p><button onClick={() => void generatePortrait(selected.id)} disabled={generatingPortraits.includes(selected.id)}>{generatingPortraits.includes(selected.id) ? "正在生成形象…" : "根据最新配置重新生成"}</button>{portraitErrors[selected.id] && <small>{portraitErrors[selected.id]}</small>}</div>
+        </div>}
         {tab === "mind" && <div className="panel-body"><label className="field"><span>世界观 / 判断原则</span><textarea className="tall" value={selected.worldview} onChange={(event) => updateSelected({ worldview: event.target.value })} /></label><div className="slider-group">{(Object.keys(sliderLabels) as (keyof Sliders)[]).map((key) => <label className="slider" key={key}><span>{sliderLabels[key]} <b>{selected.sliders[key]}</b></span><input type="range" min="0" max="100" value={selected.sliders[key]} onChange={(event) => updateSelected({ sliders: { ...selected.sliders, [key]: Number(event.target.value) } })} /></label>)}</div><div className="trait-editor"><span>核心特质</span><div>{selected.traits.map((trait) => <button key={trait} onClick={() => updateSelected({ traits: selected.traits.filter((item) => item !== trait) })}>{trait} ×</button>)}</div><form onSubmit={(event) => { event.preventDefault(); if (newTrait.trim()) { updateSelected({ traits: [...selected.traits, newTrait.trim()] }); setNewTrait(""); } }}><input placeholder="添加一个特质" value={newTrait} onChange={(event) => setNewTrait(event.target.value)} /><button>＋</button></form></div></div>}
         {tab === "tools" && <div className="panel-body"><div className="tool-summary"><span><b>{selected.tools.length}</b> 个能力已授权</span><small>Python 工具注册边界</small></div><div className="tool-list">{tools.map((tool) => <button key={tool.id} className={selected.tools.includes(tool.id) ? "enabled" : ""} onClick={() => toggleTool(tool.id)}><i>{tool.id.slice(0, 2)}</i><span><b>{tool.label}</b><small>{tool.uri}</small></span><em>{selected.tools.includes(tool.id) ? "已允许" : "未授权"}</em></button>)}</div></div>}
         {tab === "json" && <div className="panel-body json-panel"><div className="json-head"><span>comman_agents.config.json</span><button onClick={() => navigator.clipboard?.writeText(jsonConfig)}>复制</button></div><pre>{jsonConfig}</pre><p>界面中的每一项都能在这里找到对应字段。</p></div>}

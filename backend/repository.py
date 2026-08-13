@@ -76,6 +76,12 @@ class Repository:
                         "UPDATE agents SET config_json = ?, updated_at = ? WHERE id = ?",
                         (json.dumps(existing, ensure_ascii=False), now, agent.id),
                     )
+                if "customAttributes" not in existing:
+                    existing["customAttributes"] = [item.model_dump() for item in agent.custom_attributes]
+                    db.execute(
+                        "UPDATE agents SET config_json = ?, updated_at = ? WHERE id = ?",
+                        (json.dumps(existing, ensure_ascii=False), now, agent.id),
+                    )
             db.execute("PRAGMA optimize")
 
     def list_agents(self) -> list[AgentConfig]:

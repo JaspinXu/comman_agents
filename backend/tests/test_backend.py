@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from backend.imagegen import portrait_prompt
-from backend.models import ChatMessage, EnsembleMessage, RunRequest
+from backend.models import ChatMessage, CustomAttribute, EnsembleMessage, RunRequest
 from backend.orchestrator import Orchestrator
 from backend.providers import LocalDemoProvider
 from backend.repository import Repository
@@ -26,6 +26,7 @@ class BackendTest(unittest.TestCase):
         agents = self.repository.list_agents()
         self.assertEqual([agent.id for agent in agents], ["linxi", "chengye", "shenzhi"])
         self.assertEqual(agents[0].portrait_url, "/agent-images/linxi.webp")
+        self.assertEqual(agents[0].custom_attributes[0].name, "沟通方式")
         updated = agents[0].model_copy(update={"role": "首席用户研究员"})
         self.repository.save_agent(updated)
         self.assertEqual(self.repository.get_agent("linxi").role, "首席用户研究员")
@@ -74,11 +75,16 @@ class BackendTest(unittest.TestCase):
 
     def test_portrait_prompt_uses_full_persona(self) -> None:
         agent = self.repository.get_agent("linxi")
+        agent = agent.model_copy(update={"custom_attributes": [CustomAttribute(name="语气", content="温和但直接")]})
+        self.repository.save_agent(agent)
         prompt = portrait_prompt(agent)
         self.assertIn(agent.role, prompt)
         self.assertIn(agent.outfit, prompt)
         self.assertIn(agent.worldview, prompt)
         self.assertIn(agent.traits[0], prompt)
+        self.assertIn("语气: 温和但直接", prompt)
+        loaded = self.repository.get_agent("linxi")
+        self.assertEqual(loaded.custom_attributes, agent.custom_attributes)
 
     def test_direct_chat_stays_in_character(self) -> None:
         agent = self.repository.get_agent("chengye")
