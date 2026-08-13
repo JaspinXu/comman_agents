@@ -19,7 +19,7 @@ FastAPI :8000
 
 后端不依赖前端保存状态。人物配置通过 `PUT /api/agents/{id}` 写入 SQLite；每轮提问都会携带故事背景与此前对话，生成独立 Run，并逐条保存背景、问题、发言和错误事件。
 
-人物卡片形象并非通用占位图：后端会把职业、服装、世界观、核心特质、自定义特征、人格维度和人物色彩组合为透明的 ImageGen Prompt。自定义特征也会进入群聊和 1v1 的系统提示。创建新人物后前端自动请求生成；已有三位演示人物使用同一套配置生成的项目内置形象，因此未配置图像 Key 时仍可完整演示。每张人物卡片可直接进入该 Agent 的 1v1 对话。
+人物卡片形象并非通用占位图：后端会把职业、服装、世界观、核心特质、自定义特征、人格维度和人物色彩组合为透明的 ImageGen Prompt。自定义特征也会进入群聊和 1v1 的系统提示。配置图像服务后，创建新人物会自动生成形象；未配置时保留清晰的未生成状态，不发送无效请求。已有三位演示人物使用项目内置形象，因此离线也可完整演示。
 
 ## 固定使用 pytorch_env
 
@@ -60,6 +60,7 @@ Copy-Item .env.example .env
 SOCLAAS_API_KEY=clsk_你的真实密钥
 SOCLAAS_BASE_URL=https://soclaas-api.comp.nus.edu.sg/v1
 SOCLAAS_MODEL=qwen3.6:35b
+COMMAN_AGENTS_DB=data/comman_agents.db
 ```
 
 不要把真实 Key 提交到 Git。`.env` 已被忽略，只有不含秘密的 `.env.example` 会被提交。
@@ -134,16 +135,26 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-local.ps1
 ## 目录
 
 ```text
-app/                    React 工作室
+app/
+  page.tsx              工作室状态编排入口
+  studio/
+    api.ts              统一前端 API 客户端
+    defaults.ts         离线演示数据与默认值
+    types.ts            前端领域类型
+    components/         工作室界面组件
 backend/
-  main.py               FastAPI 路由
+  main.py               FastAPI 应用工厂
+  api.py                HTTP 路由
+  runtime.py            服务依赖装配
   models.py             透明领域模型
   repository.py         SQLite 仓库
   providers.py          SoC LaaS / 离线 Provider
+  prompts.py            Agent 人格提示词
   orchestrator.py       多 Agent 运行引擎
   tools.py              MCP 工具注册边界
   tests/                Python 后端测试
 scripts/                pytorch_env 启动与验证入口
 data/                   本地 SQLite 数据（Git 忽略）
 tests/                   前端构建与渲染测试
+worker/                  Sites / Cloudflare 前端运行入口
 ```

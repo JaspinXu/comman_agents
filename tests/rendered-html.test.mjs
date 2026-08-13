@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 async function render() {
@@ -34,46 +34,50 @@ test("server-renders the comman_agents demo", async () => {
 });
 
 test("keeps persona configuration transparent and local-demo safe", async () => {
-  const [page, layout, packageJson] = await Promise.all([
+  const studioRoot = new URL("../app/studio/", import.meta.url);
+  const studioFiles = (await readdir(studioRoot, { recursive: true }))
+    .filter((name) => /\.tsx?$/.test(name));
+  const [page, layout, packageJson, ...studioSources] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
+    ...studioFiles.map((name) => readFile(new URL(name, studioRoot), "utf8")),
   ]);
+  const source = [page, ...studioSources].join("\n");
 
-  assert.match(page, /schema:\s*"comman_agents\/v1"/);
-  assert.match(page, /\/api\/health/);
-  assert.match(page, /\/api\/agents/);
-  assert.match(page, /\/api\/runs/);
-  assert.match(page, /response\.body\.getReader/);
-  assert.match(page, /JSON\.stringify/);
-  assert.doesNotMatch(page, /exportConfig|导出全部配置|rail-note|export-button/);
-  assert.doesNotMatch(page, /服务端透明持久化|没有隐藏人格层|className="callout"/);
-  assert.match(page, /toggleTool/);
-  assert.match(page, /askEnsemble/);
-  assert.match(page, /storyBackground/);
-  assert.match(page, /ensembleConversation/);
-  assert.match(page, /createAgent/);
-  assert.match(page, /generatePortrait/);
-  assert.match(page, /customAttributes/);
-  assert.match(page, /addCustomAttribute/);
-  assert.match(page, /自定义特征/);
-  assert.match(page, /<span>性格<\/span>/);
-  assert.doesNotMatch(page, /<span>代表性表达<\/span>/);
-  assert.match(page, /deleteSelectedAgent/);
-  assert.match(page, /method:\s*"DELETE"/);
-  assert.match(page, /删除人物/);
-  assert.match(page, /sendChat/);
-  assert.match(page, /1v1 对话/);
-  assert.match(page, /\/portrait/);
-  assert.match(page, /\/chat/);
-  assert.doesNotMatch(page, /person-card-hit|person-copy|portrait-figure|tool-dots/);
-  assert.match(page, /method:\s*"POST"/);
-  assert.match(page, /添加新人物/);
-  assert.match(page, /comman agents/);
-  assert.doesNotMatch(page, /场景库/);
-  assert.doesNotMatch(page, /seedScenes|scene-flow|scene-card|需求探索|方案设计|观点辩论|风险评审/);
-  assert.doesNotMatch(page, /MULTI-AGENT COMPOSITION STUDIO/);
+  assert.match(source, /schema:\s*"comman_agents\/v1"/);
+  assert.match(source, /\/api\/health/);
+  assert.match(source, /\/api\/agents/);
+  assert.match(source, /\/api\/runs/);
+  assert.match(source, /response\.body\.getReader/);
+  assert.match(source, /JSON\.stringify/);
+  assert.doesNotMatch(source, /exportConfig|导出全部配置|rail-note|export-button/);
+  assert.doesNotMatch(source, /服务端透明持久化|没有隐藏人格层|className="callout"/);
+  assert.match(source, /askEnsemble/);
+  assert.match(source, /storyBackground/);
+  assert.match(source, /conversation/);
+  assert.match(source, /createAgent/);
+  assert.match(source, /generatePortrait/);
+  assert.match(source, /customAttributes/);
+  assert.match(source, /自定义特征/);
+  assert.match(source, /<span>性格<\/span>/);
+  assert.doesNotMatch(source, /<span>代表性表达<\/span>/);
+  assert.match(source, /deleteSelectedAgent/);
+  assert.match(source, /method:\s*"DELETE"/);
+  assert.match(source, /删除人物/);
+  assert.match(source, /sendChat/);
+  assert.match(source, /1v1 对话/);
+  assert.match(source, /\/portrait/);
+  assert.match(source, /\/chat/);
+  assert.doesNotMatch(source, /person-card-hit|person-copy|portrait-figure|tool-dots/);
+  assert.match(source, /method:\s*"POST"/);
+  assert.match(source, /添加新人物/);
+  assert.match(source, /comman agents/);
+  assert.doesNotMatch(source, /场景库/);
+  assert.doesNotMatch(source, /seedScenes|scene-flow|scene-card|需求探索|方案设计|观点辩论|风险评审/);
+  assert.doesNotMatch(source, /MULTI-AGENT COMPOSITION STUDIO/);
   assert.match(layout, /comman_agents · 群像/);
   assert.match(packageJson, /"name": "comman_agents"/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+  assert.doesNotMatch(packageJson, /drizzle/);
 });

@@ -28,7 +28,6 @@ class Settings:
     soclaas_api_key: str | None
     soclaas_model: str
     request_timeout_seconds: float
-    max_rounds: int
     imagegen_base_url: str
     imagegen_api_key: str | None
     imagegen_model: str
@@ -37,7 +36,9 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         load_local_env()
-        database_value = os.getenv("PERSONA_LAB_DB", "data/persona_lab.db")
+        legacy_database = PROJECT_ROOT / "data/persona_lab.db"
+        default_database = "data/persona_lab.db" if legacy_database.exists() else "data/comman_agents.db"
+        database_value = os.getenv("COMMAN_AGENTS_DB") or os.getenv("PERSONA_LAB_DB") or default_database
         database_path = Path(database_value)
         if not database_path.is_absolute():
             database_path = PROJECT_ROOT / database_path
@@ -53,7 +54,6 @@ class Settings:
             soclaas_api_key=os.getenv("SOCLAAS_API_KEY") or None,
             soclaas_model=os.getenv("SOCLAAS_MODEL", "qwen3.6:35b"),
             request_timeout_seconds=float(os.getenv("SOCLAAS_TIMEOUT", "90")),
-            max_rounds=max(1, min(int(os.getenv("PERSONA_LAB_MAX_ROUNDS", "3")), 8)),
             imagegen_base_url=os.getenv("IMAGEGEN_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
             imagegen_api_key=os.getenv("IMAGEGEN_API_KEY") or os.getenv("OPENAI_API_KEY") or None,
             imagegen_model=os.getenv("IMAGEGEN_MODEL", "gpt-image-2"),

@@ -5,11 +5,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
+from backend.config import Settings
 from backend.imagegen import portrait_prompt
+from backend.main import create_app
 from backend.models import ChatMessage, CustomAttribute, EnsembleMessage, RunRequest
 from backend.orchestrator import Orchestrator
 from backend.providers import LocalDemoProvider
 from backend.repository import Repository
+from backend.runtime import build_runtime
 from backend.tools import ToolRegistry
 
 
@@ -62,6 +67,23 @@ class BackendTest(unittest.TestCase):
         shenzhi = self.repository.get_agent("shenzhi")
         self.assertIn("calculator", linxi.tools)
         self.assertNotIn("calculator", shenzhi.tools)
+
+    def test_application_factory_exposes_core_routes(self) -> None:
+        settings = Settings(
+            database_path=Path(self.temp.name) / "api.db",
+            soclaas_base_url="https://soclaas-api.comp.nus.edu.sg/v1",
+            soclaas_api_key=None,
+            soclaas_model="qwen3.6:35b",
+            request_timeout_seconds=5,
+            imagegen_base_url="https://api.openai.com/v1",
+            imagegen_api_key=None,
+            imagegen_model="gpt-image-2",
+            agent_image_path=Path(self.temp.name) / "images",
+        )
+        with TestClient(create_app(build_runtime(settings))) as client:
+            self.assertEqual(client.get("/api/health").status_code, 200)
+            self.assertEqual(len(client.get("/api/agents").json()), 3)
+            self.assertEqual(client.get("/api/models").json()["provider"], "local-demo")
 
     def test_multi_agent_run_is_persisted(self) -> None:
         async def collect():
