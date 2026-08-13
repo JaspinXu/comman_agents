@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
-from backend.imagegen import portrait_prompt
+from backend.imagegen import ImageGenerationError, PortraitGenerator, portrait_prompt
 from backend.main import create_app
 from backend.models import ChatMessage, CustomAttribute, EnsembleMessage, RunRequest
 from backend.orchestrator import Orchestrator
@@ -75,15 +77,28 @@ class BackendTest(unittest.TestCase):
             soclaas_api_key=None,
             soclaas_model="qwen3.6:35b",
             request_timeout_seconds=5,
-            imagegen_base_url="https://api.openai.com/v1",
+            imagegen_base_url="https://soclaas-api.comp.nus.edu.sg/v1",
             imagegen_api_key=None,
-            imagegen_model="gpt-image-2",
+            imagegen_model="",
             agent_image_path=Path(self.temp.name) / "images",
         )
         with TestClient(create_app(build_runtime(settings))) as client:
             self.assertEqual(client.get("/api/health").status_code, 200)
             self.assertEqual(len(client.get("/api/agents").json()), 3)
             self.assertEqual(client.get("/api/models").json()["provider"], "local-demo")
+
+    def test_image_settings_reuse_soclaas_without_gpt_fallback(self) -> None:
+        configured = {
+            "SOCLAAS_API_KEY": "soc-key",
+            "SOCLAAS_BASE_URL": "https://soc.example/v1",
+            "SOCLAAS_MODEL": "qwen3.6:35b",
+            "IMAGEGEN_MODEL": "qwen3.6:27b",
+        }
+        with patch.dict(os.environ, configured, clear=True):
+            settings = Settings.from_env()
+        self.assertEqual(settings.imagegen_api_key, "soc-key")
+        self.assertEqual(settings.imagegen_base_url, "https://soc.example/v1")
+        self.assertEqual(settings.imagegen_model, "qwen3.6:27b")
 
     def test_multi_agent_run_is_persisted(self) -> None:
         async def collect():
@@ -118,6 +133,37 @@ class BackendTest(unittest.TestCase):
         self.assertIn("语气: 温和但直接", prompt)
         loaded = self.repository.get_agent("linxi")
         self.assertEqual(loaded.custom_attributes, agent.custom_attributes)
+
+    def test_image_generator_rejects_explicit_chat_only_model(self) -> None:
+        settings = Settings(
+            database_path=Path(self.temp.name) / "image.db",
+            soclaas_base_url="https://soclaas-api.comp.nus.edu.sg/v1",
+            soclaas_api_key="test-key",
+            soclaas_model="qwen3.6:35b",
+            request_timeout_seconds=5,
+            imagegen_base_url="https://soclaas-api.comp.nus.edu.sg/v1",
+            imagegen_api_key="test-key",
+            imagegen_model="qwen3.6:27b",
+            agent_image_path=Path(self.temp.name) / "images",
+        )
+
+        class FakeResponse:
+            is_success = True
+
+            @staticmethod
+            def json():
+                return {"data": [{
+                    "id": "qwen3.6:27b",
+                    "soclaas": {"capabilities": ["chat"]},
+                }]}
+
+        class FakeClient:
+            async def get(self, *_args, **_kwargs):
+                return FakeResponse()
+
+        generator = PortraitGenerator(settings)
+        with self.assertRaisesRegex(ImageGenerationError, "不支持生图"):
+            asyncio.run(generator._validate_model_capability(FakeClient(), {}))
 
     def test_direct_chat_stays_in_character(self) -> None:
         agent = self.repository.get_agent("chengye")

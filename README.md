@@ -84,15 +84,16 @@ Key 未配置时，系统明确显示 `local-demo`，使用离线规则引擎完
 
 ## 连接人物 ImageGen
 
-SoC DocHub 页面需要校内账号登录，当前无法从公开文档确认 SoC LaaS 是否提供图像生成端点。因此图像能力与 SoC 文本模型分开配置，默认使用兼容 `/images/generations` 的接口：
+生图模型严格从环境变量读取，不再内置或回退到 GPT 模型：
 
 ```dotenv
+IMAGEGEN_MODEL=服务端提供的生图模型 ID
+# 仅当生图服务与 SoC LaaS 不同时才需要单独设置：
 IMAGEGEN_API_KEY=你的图像服务密钥
-IMAGEGEN_BASE_URL=https://api.openai.com/v1
-IMAGEGEN_MODEL=gpt-image-2
+IMAGEGEN_BASE_URL=https://你的图像服务/v1
 ```
 
-新人物创建后会自动生成形象。人物配置更新后，可在右侧“身份”页按最新配置重新生成。Prompt 与最终图片地址会一并保存在 Agent 的透明配置中。未配置 Key 时不会伪装生成成功，接口会明确返回 `503`，同时已有演示人物仍使用项目内置生成图。
+`IMAGEGEN_API_KEY` 和 `IMAGEGEN_BASE_URL` 留空时会复用 `SOCLAAS_API_KEY` 与 `SOCLAAS_BASE_URL`。人物配置更新后，可在右侧“身份”页按最新配置重新生成；Prompt 与最终图片地址会一并保存在 Agent 的透明配置中。模型若被服务端标记为仅支持 `chat`，接口会明确拒绝，不会调用错误端点或暗中切换模型。
 
 ## API
 

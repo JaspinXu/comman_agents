@@ -38,18 +38,72 @@ Constraints: faithfully synthesize every supplied characteristic; no text; no lo
 
 
 class PortraitGenerator:
-    name = "imagegen-compatible"
+    name = "environment-image-provider"
 
     def __init__(self, settings: Settings):
         self.settings = settings
 
     @property
     def configured(self) -> bool:
-        return bool(self.settings.imagegen_api_key)
+        return bool(
+            self.settings.imagegen_base_url
+            and self.settings.imagegen_api_key
+            and self.settings.imagegen_model
+        )
+
+    async def _validate_model_capability(
+        self, client: httpx.AsyncClient, headers: dict[str, str]
+    ) -> None:
+        """Reject a model when its provider explicitly declares no image capability."""
+        try:
+            response = await client.get(
+                f"{self.settings.imagegen_base_url}/models", headers=headers
+            )
+            if not response.is_success:
+                return
+            payload = response.json()
+            models = payload.get("data", payload) if isinstance(payload, dict) else payload
+            if not isinstance(models, list):
+                return
+            model = next(
+                (
+                    item
+                    for item in models
+                    if isinstance(item, dict)
+                    and item.get("id") == self.settings.imagegen_model
+                ),
+                None,
+            )
+            if not model:
+                return
+            provider_metadata = model.get("soclaas")
+            capabilities = (
+                provider_metadata.get("capabilities")
+                if isinstance(provider_metadata, dict)
+                else None
+            )
+            image_capabilities = {"image", "images", "image_generation"}
+            if isinstance(capabilities, list) and not any(
+                capability in image_capabilities for capability in capabilities
+            ):
+                capability_text = ", ".join(str(item) for item in capabilities) or "none"
+                raise ImageGenerationError(
+                    f"环境变量中的模型 {self.settings.imagegen_model} 不支持生图；"
+                    f"服务端声明的能力为: {capability_text}。"
+                    "请设置具备 image 能力的 IMAGEGEN_MODEL。"
+                )
+        except ImageGenerationError:
+            raise
+        except (httpx.HTTPError, TypeError, ValueError):
+            # Some compatible image providers do not expose model metadata.
+            return
 
     async def generate(self, agent: AgentConfig) -> AgentConfig:
-        if not self.settings.imagegen_api_key:
-            raise ImageGenerationError("未配置 IMAGEGEN_API_KEY，无法生成新人物形象")
+        if not self.configured:
+            raise ImageGenerationError(
+                "生图配置不完整，请设置 IMAGEGEN_MODEL；"
+                "地址和密钥默认复用 SOCLAAS_BASE_URL 与 SOCLAAS_API_KEY。"
+            )
 
         prompt = portrait_prompt(agent)
         payload = {
@@ -64,6 +118,7 @@ class PortraitGenerator:
         }
         timeout = max(self.settings.request_timeout_seconds, 180)
         async with httpx.AsyncClient(timeout=timeout) as client:
+            await self._validate_model_capability(client, headers)
             response = await client.post(f"{self.settings.imagegen_base_url}/images/generations", headers=headers, json=payload)
             if not response.is_success:
                 raise ImageGenerationError(f"ImageGen {response.status_code}: {response.text[:500]}")

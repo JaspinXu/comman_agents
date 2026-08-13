@@ -36,6 +36,10 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         load_local_env()
+        soclaas_base_url = os.getenv(
+            "SOCLAAS_BASE_URL", "https://soclaas-api.comp.nus.edu.sg/v1"
+        ).rstrip("/")
+        soclaas_api_key = os.getenv("SOCLAAS_API_KEY") or None
         legacy_database = PROJECT_ROOT / "data/persona_lab.db"
         default_database = "data/persona_lab.db" if legacy_database.exists() else "data/comman_agents.db"
         database_value = os.getenv("COMMAN_AGENTS_DB") or os.getenv("PERSONA_LAB_DB") or default_database
@@ -48,14 +52,12 @@ class Settings:
             agent_image_path = PROJECT_ROOT / agent_image_path
         return cls(
             database_path=database_path,
-            soclaas_base_url=os.getenv(
-                "SOCLAAS_BASE_URL", "https://soclaas-api.comp.nus.edu.sg/v1"
-            ).rstrip("/"),
-            soclaas_api_key=os.getenv("SOCLAAS_API_KEY") or None,
+            soclaas_base_url=soclaas_base_url,
+            soclaas_api_key=soclaas_api_key,
             soclaas_model=os.getenv("SOCLAAS_MODEL", "qwen3.6:35b"),
             request_timeout_seconds=float(os.getenv("SOCLAAS_TIMEOUT", "90")),
-            imagegen_base_url=os.getenv("IMAGEGEN_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
-            imagegen_api_key=os.getenv("IMAGEGEN_API_KEY") or os.getenv("OPENAI_API_KEY") or None,
-            imagegen_model=os.getenv("IMAGEGEN_MODEL", "gpt-image-2"),
+            imagegen_base_url=(os.getenv("IMAGEGEN_BASE_URL") or soclaas_base_url).rstrip("/"),
+            imagegen_api_key=os.getenv("IMAGEGEN_API_KEY") or soclaas_api_key,
+            imagegen_model=os.getenv("IMAGEGEN_MODEL", "").strip(),
             agent_image_path=agent_image_path,
         )
