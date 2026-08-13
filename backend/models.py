@@ -38,6 +38,12 @@ class AgentConfig(BaseModel):
     portrait_prompt: str | None = Field(default=None, alias="portraitPrompt", max_length=5000)
 
 
+class StudioSettings(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    group_name: str = Field(default="产品共创小组", alias="groupName", min_length=1, max_length=80)
+
+
 class EnsembleMessage(BaseModel):
     speaker_type: Literal["user", "agent"]
     name: str = Field(min_length=1, max_length=80)

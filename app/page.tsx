@@ -8,12 +8,13 @@ import { AgentRail } from "./studio/components/agent-rail";
 import { ChatDialog, CreateAgentDialog } from "./studio/components/dialogs";
 import { EnsemblePanel } from "./studio/components/ensemble-panel";
 import { TopBar } from "./studio/components/top-bar";
-import { blankAgent, defaultStoryBackground, fallbackTools, seedAgents } from "./studio/defaults";
+import { blankAgent, defaultGroupName, defaultStoryBackground, fallbackTools, seedAgents } from "./studio/defaults";
 import type { Agent, ChatMessage, EnsembleLine, Health, NewAgentDraft } from "./studio/types";
 
 export default function Home() {
   const [agents, setAgents] = useState(seedAgents);
   const [health, setHealth] = useState<Health | null>(null);
+  const [groupName, setGroupName] = useState(defaultGroupName);
   const [selectedId, setSelectedId] = useState(seedAgents[0].id);
   const [storyBackground, setStoryBackground] = useState(defaultStoryBackground);
   const [question, setQuestion] = useState("");
@@ -31,13 +32,15 @@ export default function Home() {
   const [chatInput, setChatInput] = useState("");
   const [chatting, setChatting] = useState(false);
   const saveTimers = useRef<Record<string, number>>({});
+  const settingsSaveTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
-    studioApi.bootstrap().then(([healthData, agentData]) => {
+    studioApi.bootstrap().then(([healthData, agentData, settingsData]) => {
       if (!active) return;
       setHealth(healthData);
       setAgents(agentData);
+      setGroupName(settingsData.groupName);
       setSelectedId((current) => agentData.some((agent) => agent.id === current) ? current : agentData[0].id);
     }).catch(() => { /* Seed data remains visible while the backend is offline. */ });
     return () => { active = false; };
@@ -58,6 +61,23 @@ export default function Home() {
     const updated = { ...selected, ...patch };
     setAgents((current) => current.map((agent) => agent.id === selected.id ? updated : agent));
     persistAgent(updated);
+  }
+
+  function updateGroupName(value: string) {
+    setGroupName(value);
+    window.clearTimeout(settingsSaveTimer.current);
+    const normalized = value.trim();
+    if (!normalized) return;
+    settingsSaveTimer.current = window.setTimeout(() => {
+      void studioApi.updateSettings({ groupName: normalized }).catch(() => { /* A later edit retries persistence. */ });
+    }, 450);
+  }
+
+  function commitGroupName() {
+    const normalized = groupName.trim() || defaultGroupName;
+    window.clearTimeout(settingsSaveTimer.current);
+    setGroupName(normalized);
+    void studioApi.updateSettings({ groupName: normalized }).catch(() => { /* Keep the current draft visible. */ });
   }
 
   async function generatePortrait(agentId: string) {
@@ -183,7 +203,7 @@ export default function Home() {
     <section className="workspace">
       <AgentRail agents={agents} selectedId={selected.id} onSelect={setSelectedId} onCreate={() => setCreatingAgent(true)} />
       <section className="canvas">
-        <AgentGallery agents={agents} selectedId={selected.id} health={health} generatingPortraits={generatingPortraits} portraitErrors={portraitErrors} onSelect={setSelectedId} onChat={openChat} />
+        <AgentGallery groupName={groupName} agents={agents} selectedId={selected.id} health={health} generatingPortraits={generatingPortraits} portraitErrors={portraitErrors} onGroupNameChange={updateGroupName} onGroupNameCommit={commitGroupName} onSelect={setSelectedId} onChat={openChat} />
         <EnsemblePanel agents={agents} health={health} background={storyBackground} question={question} conversation={conversation} running={running} onBackgroundChange={setStoryBackground} onQuestionChange={setQuestion} onSubmit={askEnsemble} />
       </section>
       <AgentInspector agent={selected} agentCount={agents.length} health={health} tools={tools} generatingPortrait={generatingPortraits.includes(selected.id)} portraitError={portraitErrors[selected.id]} deletingAgent={deletingAgent} deleteError={deleteError} onUpdate={updateSelected} onGeneratePortrait={() => void generatePortrait(selected.id)} onDelete={() => void deleteSelectedAgent()} />

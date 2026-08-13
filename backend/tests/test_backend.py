@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.imagegen import ImageGenerationError, PortraitGenerator, portrait_prompt
 from backend.main import create_app
-from backend.models import ChatMessage, CustomAttribute, EnsembleMessage, RunRequest
+from backend.models import ChatMessage, CustomAttribute, EnsembleMessage, RunRequest, StudioSettings
 from backend.orchestrator import Orchestrator
 from backend.providers import LocalDemoProvider
 from backend.repository import Repository
@@ -47,6 +47,12 @@ class BackendTest(unittest.TestCase):
         self.repository.save_agent(newcomer)
         self.assertEqual(self.repository.get_agent("newcomer").name, "新成员")
         self.assertEqual(len(self.repository.list_agents()), 4)
+
+    def test_group_name_is_persisted(self) -> None:
+        self.assertEqual(self.repository.get_studio_settings().group_name, "产品共创小组")
+        self.repository.save_studio_settings(StudioSettings(groupName="跨学科研究团"))
+        self.repository.initialize()
+        self.assertEqual(self.repository.get_studio_settings().group_name, "跨学科研究团")
 
     def test_agent_deletion_survives_restart_and_keeps_one_agent(self) -> None:
         self.assertTrue(self.repository.delete_agent("linxi"))
@@ -87,6 +93,10 @@ class BackendTest(unittest.TestCase):
             agents = client.get("/api/agents").json()
             self.assertEqual(len(agents), 3)
             self.assertEqual(client.get("/api/models").json()["provider"], "local-demo")
+            self.assertEqual(client.get("/api/settings").json()["groupName"], "产品共创小组")
+            saved_settings = client.put("/api/settings", json={"groupName": "用户自定义团队"})
+            self.assertEqual(saved_settings.status_code, 200)
+            self.assertEqual(saved_settings.json()["groupName"], "用户自定义团队")
             newcomer = {
                 **agents[0],
                 "id": "default-portrait-agent",

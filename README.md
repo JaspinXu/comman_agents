@@ -1,6 +1,6 @@
 # comman_agents · 群像
 
-`comman_agents` 是一个前后端完整的多 Agent 工作室。用户可以创建和删除人物，透明编辑每个 Agent 的身份、性格、服装、世界观、自定义特征和工具权限，并在统一故事背景下让多个 Agent 依次回答、互相补充或反驳。人物配置、对话和运行记录持久化到本地 SQLite。
+`comman_agents` 是一个前后端完整的多 Agent 工作室。用户可以自定义团体名称，创建和删除人物，透明编辑每个 Agent 的身份、性格、服装、世界观、自定义特征和工具权限，并在统一故事背景下让多个 Agent 依次回答、互相补充或反驳。团体设置、人物配置、对话和运行记录持久化到本地 SQLite。
 
 ## 技术结构
 
@@ -206,6 +206,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-local.ps1
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/api/health` | Provider、模型、数据库和工具状态 |
+| GET / PUT | `/api/settings` | 查询或保存团体名称等工作室设置 |
 | GET / POST | `/api/agents` | 查询和创建 Agent |
 | PUT / DELETE | `/api/agents/{id}` | 保存或永久删除 Agent |
 | POST | `/api/agents/{id}/chat` | 与指定 Agent 进行 1v1 对话 |

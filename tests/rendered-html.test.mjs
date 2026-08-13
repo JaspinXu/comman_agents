@@ -24,7 +24,7 @@ test("server-renders the comman_agents demo", async () => {
   assert.match(html, /comman_agents/);
   assert.match(html, /产品共创小组/);
   assert.match(html, /Local Engine/);
-  assert.match(html, /Python 编排器驱动/);
+  assert.match(html, /点击名称即可编辑/);
   assert.match(html, /整体故事背景/);
   assert.match(html, /依次回答 · 自主交流/);
   assert.match(html, /林溪/);
@@ -48,6 +48,7 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(source, /schema:\s*"comman_agents\/v1"/);
   assert.match(source, /\/api\/health/);
   assert.match(source, /\/api\/agents/);
+  assert.match(source, /\/api\/settings/);
   assert.match(source, /\/api\/runs/);
   assert.match(source, /response\.body\.getReader/);
   assert.match(source, /JSON\.stringify/);
@@ -57,6 +58,9 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(source, /storyBackground/);
   assert.match(source, /conversation/);
   assert.match(source, /createAgent/);
+  assert.match(source, /updateGroupName/);
+  assert.match(source, /group-name-input/);
+  assert.match(source, /aria-label="团体名称"/);
   assert.match(source, /generatePortrait/);
   assert.doesNotMatch(source, /generatePortrait\(created\.id\)/);
   assert.match(source, /新人物暂用默认形象/);

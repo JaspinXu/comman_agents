@@ -8,7 +8,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from .models import AgentConfig, RunEvent, RunSummary
+from .models import AgentConfig, RunEvent, RunSummary, StudioSettings
 from .seed import SEED_AGENTS
 
 
@@ -46,6 +46,11 @@ class Repository:
                 CREATE TABLE IF NOT EXISTS agent_tombstones (
                     id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS studio_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    config_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS runs (
                     id TEXT PRIMARY KEY, story_background TEXT NOT NULL, prompt TEXT NOT NULL,
                     provider TEXT NOT NULL, model TEXT NOT NULL, status TEXT NOT NULL,
@@ -65,6 +70,11 @@ class Repository:
             if "story_background" not in run_columns:
                 db.execute("ALTER TABLE runs ADD COLUMN story_background TEXT NOT NULL DEFAULT ''")
             now = utc_now().isoformat()
+            default_settings = StudioSettings()
+            db.execute(
+                "INSERT OR IGNORE INTO studio_settings VALUES (1, ?, ?)",
+                (default_settings.model_dump_json(by_alias=True), now),
+            )
             for agent in SEED_AGENTS:
                 deleted = db.execute("SELECT 1 FROM agent_tombstones WHERE id = ?", (agent.id,)).fetchone()
                 if deleted:
@@ -94,6 +104,26 @@ class Repository:
         with self.connect() as db:
             rows = db.execute("SELECT config_json FROM agents ORDER BY rowid").fetchall()
         return [AgentConfig.model_validate_json(row["config_json"]) for row in rows]
+
+    def get_studio_settings(self) -> StudioSettings:
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT config_json FROM studio_settings WHERE id = 1"
+            ).fetchone()
+        return StudioSettings.model_validate_json(row["config_json"]) if row else StudioSettings()
+
+    def save_studio_settings(self, settings: StudioSettings) -> StudioSettings:
+        with self._lock, self.connect() as db:
+            db.execute(
+                "INSERT INTO studio_settings VALUES (1, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET "
+                "config_json=excluded.config_json, updated_at=excluded.updated_at",
+                (
+                    settings.model_dump_json(by_alias=True),
+                    utc_now().isoformat(),
+                ),
+            )
+        return settings
 
     def get_agent(self, agent_id: str) -> AgentConfig | None:
         with self.connect() as db:

@@ -42,6 +42,10 @@ export type Health = {
   image_generation_configured: boolean;
 };
 
+export type StudioSettings = {
+  groupName: string;
+};
+
 export type RunEvent = {
   type: "status" | "message" | "tool" | "error" | "complete";
   agent_id?: string;

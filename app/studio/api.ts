@@ -1,4 +1,4 @@
-import type { Agent, ChatMessage, EnsembleLine, Health, RunEvent } from "./types";
+import type { Agent, ChatMessage, EnsembleLine, Health, RunEvent, StudioSettings } from "./types";
 
 export function apiBase(): string {
   if (typeof window === "undefined") return "http://127.0.0.1:8000";
@@ -20,7 +20,11 @@ export const studioApi = {
   bootstrap: () => Promise.all([
     request<Health>("/api/health"),
     request<Agent[]>("/api/agents"),
+    request<StudioSettings>("/api/settings"),
   ]),
+  updateSettings: (settings: StudioSettings) => request<StudioSettings>("/api/settings", {
+    method: "PUT", headers: jsonHeaders, body: JSON.stringify(settings),
+  }),
   createAgent: (agent: Agent) => request<Agent>("/api/agents", {
     method: "POST", headers: jsonHeaders, body: JSON.stringify(agent),
   }),

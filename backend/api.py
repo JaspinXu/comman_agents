@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from .imagegen import ImageGenerationError
-from .models import AgentConfig, DirectChatRequest, DirectChatResponse, HealthResponse, RunRequest, RunSummary, ToolExecuteRequest, ToolExecuteResponse
+from .models import AgentConfig, DirectChatRequest, DirectChatResponse, HealthResponse, RunRequest, RunSummary, StudioSettings, ToolExecuteRequest, ToolExecuteResponse
 from .providers import SoCLaaSProvider
 from .runtime import Runtime
 
@@ -32,6 +32,14 @@ def create_router(runtime: Runtime) -> APIRouter:
     @router.get("/api/agents", response_model=list[AgentConfig])
     def list_agents() -> list[AgentConfig]:
         return repository.list_agents()
+
+    @router.get("/api/settings", response_model=StudioSettings)
+    def get_settings() -> StudioSettings:
+        return repository.get_studio_settings()
+
+    @router.put("/api/settings", response_model=StudioSettings)
+    def update_settings(settings: StudioSettings) -> StudioSettings:
+        return repository.save_studio_settings(settings)
 
     @router.post("/api/agents", response_model=AgentConfig, status_code=status.HTTP_201_CREATED)
     def create_agent(agent: AgentConfig) -> AgentConfig:
