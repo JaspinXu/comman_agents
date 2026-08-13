@@ -47,12 +47,30 @@ export type StudioSettings = {
 };
 
 export type RunEvent = {
+  id?: number;
+  run_id?: string;
+  sequence?: number;
   type: "status" | "message" | "tool" | "error" | "complete";
   agent_id?: string;
   agent_name?: string;
   content: string;
   metadata?: Record<string, unknown>;
+  created_at?: string;
 };
+
+export type RunSummary = {
+  id: string;
+  background: string;
+  prompt: string;
+  provider: string;
+  model: string;
+  status: string;
+  created_at: string;
+  completed_at?: string | null;
+  events: RunEvent[];
+};
+
+export type StudioView = "studio" | "runs";
 
 export type NewAgentDraft = {
   name: string;

@@ -50,6 +50,11 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(source, /\/api\/agents/);
   assert.match(source, /\/api\/settings/);
   assert.match(source, /\/api\/runs/);
+  assert.match(source, /listRuns/);
+  assert.match(source, /getRun/);
+  assert.match(source, /changeView/);
+  assert.match(source, /onViewChange\("runs"\)/);
+  assert.match(source, /ARCHIVE \/ SQLITE/);
   assert.match(source, /response\.body\.getReader/);
   assert.match(source, /JSON\.stringify/);
   assert.doesNotMatch(source, /exportConfig|导出全部配置|rail-note|export-button/);

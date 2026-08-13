@@ -7,13 +7,15 @@ import { AgentInspector } from "./studio/components/agent-inspector";
 import { AgentRail } from "./studio/components/agent-rail";
 import { ChatDialog, CreateAgentDialog } from "./studio/components/dialogs";
 import { EnsemblePanel } from "./studio/components/ensemble-panel";
+import { RunHistory } from "./studio/components/run-history";
 import { TopBar } from "./studio/components/top-bar";
 import { blankAgent, defaultGroupName, defaultStoryBackground, fallbackTools, seedAgents } from "./studio/defaults";
-import type { Agent, ChatMessage, EnsembleLine, Health, NewAgentDraft } from "./studio/types";
+import type { Agent, ChatMessage, EnsembleLine, Health, NewAgentDraft, RunSummary, StudioView } from "./studio/types";
 
 export default function Home() {
   const [agents, setAgents] = useState(seedAgents);
   const [health, setHealth] = useState<Health | null>(null);
+  const [activeView, setActiveView] = useState<StudioView>("studio");
   const [groupName, setGroupName] = useState(defaultGroupName);
   const [selectedId, setSelectedId] = useState(seedAgents[0].id);
   const [storyBackground, setStoryBackground] = useState(defaultStoryBackground);
@@ -31,6 +33,10 @@ export default function Home() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatting, setChatting] = useState(false);
+  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [selectedRun, setSelectedRun] = useState<RunSummary | null>(null);
+  const [runsLoading, setRunsLoading] = useState(false);
+  const [runsError, setRunsError] = useState("");
   const saveTimers = useRef<Record<string, number>>({});
   const settingsSaveTimer = useRef<number | undefined>(undefined);
 
@@ -78,6 +84,42 @@ export default function Home() {
     window.clearTimeout(settingsSaveTimer.current);
     setGroupName(normalized);
     void studioApi.updateSettings({ groupName: normalized }).catch(() => { /* Keep the current draft visible. */ });
+  }
+
+  async function loadRuns() {
+    setRunsLoading(true);
+    setRunsError("");
+    try {
+      const records = await studioApi.listRuns();
+      setRuns(records);
+      if (records.length === 0) {
+        setSelectedRun(null);
+      } else {
+        const detail = await studioApi.getRun(records[0].id);
+        setSelectedRun(detail);
+      }
+    } catch (error) {
+      setRunsError(error instanceof Error ? error.message : "无法读取运行记录");
+    } finally {
+      setRunsLoading(false);
+    }
+  }
+
+  async function selectRun(runId: string) {
+    setRunsLoading(true);
+    setRunsError("");
+    try {
+      setSelectedRun(await studioApi.getRun(runId));
+    } catch (error) {
+      setRunsError(error instanceof Error ? error.message : "无法读取这条记录");
+    } finally {
+      setRunsLoading(false);
+    }
+  }
+
+  function changeView(view: StudioView) {
+    setActiveView(view);
+    if (view === "runs") void loadRuns();
   }
 
   async function generatePortrait(agentId: string) {
@@ -199,15 +241,15 @@ export default function Home() {
   }
 
   return <main className="app-shell">
-    <TopBar health={health} />
-    <section className="workspace">
+    <TopBar health={health} activeView={activeView} onViewChange={changeView} />
+    {activeView === "studio" ? <section className="workspace">
       <AgentRail agents={agents} selectedId={selected.id} onSelect={setSelectedId} onCreate={() => setCreatingAgent(true)} />
       <section className="canvas">
         <AgentGallery groupName={groupName} agents={agents} selectedId={selected.id} health={health} generatingPortraits={generatingPortraits} portraitErrors={portraitErrors} onGroupNameChange={updateGroupName} onGroupNameCommit={commitGroupName} onSelect={setSelectedId} onChat={openChat} />
         <EnsemblePanel agents={agents} health={health} background={storyBackground} question={question} conversation={conversation} running={running} onBackgroundChange={setStoryBackground} onQuestionChange={setQuestion} onSubmit={askEnsemble} />
       </section>
       <AgentInspector agent={selected} agentCount={agents.length} health={health} tools={tools} generatingPortrait={generatingPortraits.includes(selected.id)} portraitError={portraitErrors[selected.id]} deletingAgent={deletingAgent} deleteError={deleteError} onUpdate={updateSelected} onGeneratePortrait={() => void generatePortrait(selected.id)} onDelete={() => void deleteSelectedAgent()} />
-    </section>
+    </section> : <RunHistory runs={runs} selectedRun={selectedRun} loading={runsLoading} error={runsError} onSelect={(runId) => void selectRun(runId)} onRefresh={() => void loadRuns()} />}
     {creatingAgent && <CreateAgentDialog draft={newAgent} error={createError} onDraftChange={setNewAgent} onClose={() => setCreatingAgent(false)} onSubmit={createAgent} />}
     {chatAgent && <ChatDialog agent={chatAgent} messages={chatMessages} input={chatInput} chatting={chatting} onInputChange={setChatInput} onClose={() => setChatAgentId(null)} onSubmit={sendChat} />}
   </main>;

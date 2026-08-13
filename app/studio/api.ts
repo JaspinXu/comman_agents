@@ -1,4 +1,4 @@
-import type { Agent, ChatMessage, EnsembleLine, Health, RunEvent, StudioSettings } from "./types";
+import type { Agent, ChatMessage, EnsembleLine, Health, RunEvent, RunSummary, StudioSettings } from "./types";
 
 export function apiBase(): string {
   if (typeof window === "undefined") return "http://127.0.0.1:8000";
@@ -33,6 +33,8 @@ export const studioApi = {
   }),
   deleteAgent: (agentId: string) => request<void>(`/api/agents/${agentId}`, { method: "DELETE" }),
   generatePortrait: (agentId: string) => request<Agent>(`/api/agents/${agentId}/portrait`, { method: "POST" }),
+  listRuns: () => request<RunSummary[]>("/api/runs?limit=100"),
+  getRun: (runId: string) => request<RunSummary>(`/api/runs/${runId}`),
   chat: (agentId: string, message: string, history: ChatMessage[]) => request<{ reply: string }>(`/api/agents/${agentId}/chat`, {
     method: "POST", headers: jsonHeaders, body: JSON.stringify({ message, history }),
   }),
