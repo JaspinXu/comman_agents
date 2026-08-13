@@ -291,7 +291,7 @@ export default function Home() {
         {tab === "identity" && <div className="panel-body">
           <label className="field"><span>角色 / 职业</span><input value={selected.role} onChange={(event) => updateSelected({ role: event.target.value })} /></label>
           <label className="field"><span>外观与服装</span><textarea value={selected.outfit} onChange={(event) => updateSelected({ outfit: event.target.value })} /></label>
-          <label className="field"><span>代表性表达</span><textarea value={selected.quote} onChange={(event) => updateSelected({ quote: event.target.value })} /></label>
+          <label className="field"><span>性格</span><textarea value={selected.quote} onChange={(event) => updateSelected({ quote: event.target.value })} /></label>
           <section className="custom-attribute-editor">
             <div className="custom-attribute-head"><span><b>自定义特征</b><small>自由添加任何特征名称及其对应内容</small></span><em>{selectedCustomAttributes.length}/64</em></div>
             {selectedCustomAttributes.length > 0 && <div className="custom-attribute-list">{selectedCustomAttributes.map((attribute, index) => <div className="custom-attribute-row" key={index}>

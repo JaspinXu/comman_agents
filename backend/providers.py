@@ -46,7 +46,7 @@ def system_prompt(agent: AgentConfig, background: str, tools: ToolRegistry) -> s
 外观与服装：{agent.outfit}
 核心特质：{traits}
 世界观与判断原则：{agent.worldview}
-代表性表达：{agent.quote}
+性格描述：{agent.quote}
 用户自定义特征：
 {custom_attributes_text(agent)}
 人格维度：自主性 {agent.sliders.autonomy}/100；共情 {agent.sliders.empathy}/100；创造力 {agent.sliders.creativity}/100；严谨性 {agent.sliders.rigor}/100。
@@ -66,7 +66,7 @@ def direct_chat_system_prompt(agent: AgentConfig, tools: ToolRegistry) -> str:
 外观与服装：{agent.outfit}
 核心特质：{traits}
 世界观与判断原则：{agent.worldview}
-代表性表达：{agent.quote}
+性格描述：{agent.quote}
 用户自定义特征：
 {custom_attributes_text(agent)}
 人格维度：自主性 {agent.sliders.autonomy}/100；共情 {agent.sliders.empathy}/100；创造力 {agent.sliders.creativity}/100；严谨性 {agent.sliders.rigor}/100。

@@ -27,6 +27,7 @@ Primary request: create a coherent portrait of {agent.name}, a {agent.role}, exp
 Subject identity: Chinese adult; role is {agent.role}; core traits are {traits}
 Clothing and appearance: {agent.outfit}
 Character direction: {agent.worldview}
+Personality description: {agent.quote}
 User-defined characteristics: {custom_attributes}
 Personality dimensions: autonomy {agent.sliders.autonomy}/100, empathy {agent.sliders.empathy}/100, creativity {agent.sliders.creativity}/100, rigor {agent.sliders.rigor}/100
 Style/medium: premium contemporary editorial portrait photography, realistic skin and fabric texture

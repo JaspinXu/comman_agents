@@ -91,6 +91,7 @@ class BackendTest(unittest.TestCase):
         self.assertIn(agent.role, prompt)
         self.assertIn(agent.outfit, prompt)
         self.assertIn(agent.worldview, prompt)
+        self.assertIn(agent.quote, prompt)
         self.assertIn(agent.traits[0], prompt)
         self.assertIn("语气: 温和但直接", prompt)
         loaded = self.repository.get_agent("linxi")
