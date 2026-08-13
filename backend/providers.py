@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+import json
+from abc import ABC, abstractmethod
+from typing import Any
+
+import httpx
+
+from .config import Settings
+from .models import AgentConfig, SceneConfig
+from .tools import ToolRegistry
+
+
+class ProviderError(RuntimeError):
+    pass
+
+
+class LLMProvider(ABC):
+    name: str
+    model: str
+
+    @abstractmethod
+    async def generate(self, agent: AgentConfig, scene: SceneConfig, prompt: str, transcript: list[dict[str, str]]) -> str:
+        raise NotImplementedError
+
+
+def system_prompt(agent: AgentConfig, scene: SceneConfig, tools: ToolRegistry) -> str:
+    traits = "、".join(agent.traits) or "未设置"
+    return f"""你不是通用助手，而是一个具体的人。始终使用第一人称，以角色自身的判断发言。
+
+姓名：{agent.name}
+职业：{agent.role}
+外观与服装：{agent.outfit}
+核心特质：{traits}
+世界观与判断原则：{agent.worldview}
+代表性表达：{agent.quote}
+人格维度：自主性 {agent.sliders.autonomy}/100；共情 {agent.sliders.empathy}/100；创造力 {agent.sliders.creativity}/100；严谨性 {agent.sliders.rigor}/100。
+
+当前场景：{scene.title}
+场景目标：{scene.objective}
+授权工具（只说明能力，当前回合不自动执行）：
+{tools.describe(agent.tools)}
+
+规则：回应其他成员已经提出的观点；允许明确不同意；不要声称自己调用了未执行的工具；给出一段 80 到 220 字的实质发言，不要输出角色名前缀。"""
+
+
+class SoCLaaSProvider(LLMProvider):
+    name = "soclaas"
+
+    def __init__(self, settings: Settings, tools: ToolRegistry):
+        if not settings.soclaas_api_key:
+            raise ValueError("SOCLAAS_API_KEY is required")
+        self.settings = settings
+        self.tools = tools
+        self.model = settings.soclaas_model
+
+    async def list_models(self) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=self.settings.request_timeout_seconds) as client:
+            response = await client.get(
+                f"{self.settings.soclaas_base_url}/models",
+                headers={"Authorization": f"Bearer {self.settings.soclaas_api_key}"},
+            )
+            self._raise(response)
+            return response.json().get("data", [])
+
+    async def generate(self, agent: AgentConfig, scene: SceneConfig, prompt: str, transcript: list[dict[str, str]]) -> str:
+        messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt(agent, scene, self.tools)}]
+        if transcript:
+            context = "\n".join(f"{item['name']}：{item['content']}" for item in transcript[-12:])
+            messages.append({"role": "user", "content": f"其他成员目前的发言：\n{context}"})
+        messages.append({"role": "user", "content": prompt})
+        payload = {"model": self.model, "messages": messages, "temperature": 0.75, "max_tokens": 600}
+        async with httpx.AsyncClient(timeout=self.settings.request_timeout_seconds) as client:
+            response = await client.post(
+                f"{self.settings.soclaas_base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self.settings.soclaas_api_key}", "Content-Type": "application/json"},
+                content=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            )
+            self._raise(response)
+            data = response.json()
+        try:
+            return data["choices"][0]["message"]["content"].strip()
+        except (KeyError, IndexError, TypeError) as exc:
+            raise ProviderError("SoC LaaS returned an unexpected response shape") from exc
+
+    @staticmethod
+    def _raise(response: httpx.Response) -> None:
+        if response.is_success:
+            return
+        try:
+            detail = response.json().get("error", response.text)
+        except ValueError:
+            detail = response.text
+        raise ProviderError(f"SoC LaaS {response.status_code}: {detail}")
+
+
+class LocalDemoProvider(LLMProvider):
+    """Deterministic offline provider for demos and tests; never presented as live AI."""
+
+    name = "local-demo"
+    model = "persona-rule-engine"
+
+    def __init__(self, tools: ToolRegistry):
+        self.tools = tools
+
+    async def generate(self, agent: AgentConfig, scene: SceneConfig, prompt: str, transcript: list[dict[str, str]]) -> str:
+        previous = f"我回应前面的观点：{transcript[-1]['content'][:42]}……" if transcript else "这是我在本轮首先关注的事情。"
+        trait = agent.traits[0] if agent.traits else "审慎"
+        return (
+            f"{previous} 作为{agent.role}，我会以“{trait}”为起点处理“{prompt}”。"
+            f"在{scene.title}中，我建议先围绕“{scene.objective}”建立一个可验证的判断，"
+            f"再明确证据、负责人和下一步。我的原则是：{agent.worldview}"
+        )
+
+
+def build_provider(settings: Settings, tools: ToolRegistry) -> LLMProvider:
+    if settings.soclaas_api_key:
+        return SoCLaaSProvider(settings, tools)
+    return LocalDemoProvider(tools)

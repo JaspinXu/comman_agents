@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class Sliders(BaseModel):
+    autonomy: int = Field(ge=0, le=100)
+    empathy: int = Field(ge=0, le=100)
+    creativity: int = Field(ge=0, le=100)
+    rigor: int = Field(ge=0, le=100)
+
+
+class AgentConfig(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
+    name: str = Field(min_length=1, max_length=80)
+    english_name: str = Field(alias="englishName", min_length=1, max_length=80)
+    role: str = Field(min_length=1, max_length=120)
+    color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    initials: str = Field(min_length=1, max_length=4)
+    quote: str = Field(max_length=1000)
+    outfit: str = Field(max_length=1000)
+    worldview: str = Field(max_length=2000)
+    traits: list[str] = Field(default_factory=list, max_length=24)
+    sliders: Sliders
+    tools: list[str] = Field(default_factory=list, max_length=32)
+
+
+class SceneConfig(BaseModel):
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
+    index: str
+    title: str
+    subtitle: str
+    objective: str
+    max_rounds: int = Field(default=1, ge=1, le=8)
+
+
+class RunRequest(BaseModel):
+    scene_id: str = Field(min_length=1, max_length=64)
+    prompt: str = Field(default="请围绕当前场景给出你最重要的判断。", min_length=1, max_length=4000)
+    agent_ids: list[str] = Field(min_length=1, max_length=12)
+    model: str | None = Field(default=None, max_length=200)
+    rounds: int = Field(default=1, ge=1, le=8)
+
+
+class RunEvent(BaseModel):
+    id: int | None = None
+    run_id: str
+    sequence: int
+    type: Literal["status", "message", "tool", "error", "complete"]
+    agent_id: str | None = None
+    agent_name: str | None = None
+    content: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class RunSummary(BaseModel):
+    id: str
+    scene_id: str
+    prompt: str
+    provider: str
+    model: str
+    status: str
+    created_at: datetime
+    completed_at: datetime | None = None
+    events: list[RunEvent] = Field(default_factory=list)
+
+
+class HealthResponse(BaseModel):
+    status: Literal["ok"]
+    provider: str
+    live_provider_configured: bool
+    model: str
+    database: str
+    tools: list[dict[str, Any]]
+
+
+class ToolExecuteRequest(BaseModel):
+    agent_id: str = Field(min_length=1, max_length=64)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolExecuteResponse(BaseModel):
+    agent_id: str
+    tool: str
+    result: str

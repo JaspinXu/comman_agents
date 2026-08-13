@@ -22,6 +22,7 @@ button { color:inherit; }
 .provider-pill i,.status-dot { width:7px; height:7px; background:#83bf3f; border-radius:50%; box-shadow:0 0 0 3px rgba(131,191,63,.12); }
 .provider-pill span { color:var(--muted); font-weight:400; }
 .icon-button,.avatar-mini { width:34px; height:34px; border:1px solid var(--line); border-radius:50%; background:transparent; cursor:pointer; }
+.api-doc { display:grid; place-items:center; text-decoration:none; font-size:8px; font-weight:800; }
 .avatar-mini { background:var(--ink); color:white; font-size:10px; font-weight:700; }
 
 .workspace { display:grid; grid-template-columns:244px minmax(670px,1fr) 334px; min-height:calc(100vh - 72px); }
@@ -67,11 +68,14 @@ blockquote { margin:12px 0 0; min-height:40px; font-family:Georgia,"Songti SC",s
 .tool-dots { position:absolute; right:11px; bottom:10px; display:flex; }.tool-dots i { width:20px; height:20px; border:1px solid var(--line); background:white; border-radius:50%; margin-left:-3px; display:grid; place-items:center; font-style:normal; font-size:7px; }
 
 .scene-section { margin-top:31px; border-top:1px solid var(--line); padding-top:22px; }
+.runtime-badge,.db-mark { color:var(--muted); font-family:monospace; font-size:8px; border:1px solid var(--line); padding:5px 7px; }
 .section-title { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:15px; }.section-title h2 { margin:5px 0 0; font-size:15px; }.text-button { border:0; background:transparent; color:var(--muted); font-size:9px; cursor:pointer; }
 .scene-flow { display:flex; align-items:stretch; gap:7px; }
 .scene-wrap { display:flex; align-items:center; gap:7px; flex:1; min-width:0; }.scene-card { position:relative; min-width:0; flex:1; min-height:83px; text-align:left; padding:12px; border:1px solid var(--line); background:rgba(250,248,242,.8); cursor:pointer; }.scene-card.active { border:2px solid var(--ink); background:white; box-shadow:inset 4px 0 var(--lime); }.scene-card span { color:var(--orange); font-size:9px; }.scene-card b,.scene-card small { display:block; }.scene-card b { margin:12px 0 3px; font-size:11px; }.scene-card small { color:var(--muted); font-size:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.scene-card i { position:absolute; right:9px; top:9px; color:var(--orange); font-size:8px; font-style:normal; }.flow-arrow { color:#aaa59b; font-size:13px; }
-.run-button { min-width:91px; border:0; background:var(--ink); color:white; font-size:10px; font-weight:700; cursor:pointer; }.run-button span { color:var(--lime); display:block; font-size:17px; margin-bottom:6px; }
+.run-composer { display:grid; grid-template-columns:1fr 105px; gap:8px; margin-top:12px; }.run-composer textarea { border:1px solid var(--line); background:white; resize:vertical; min-height:76px; padding:12px; font-size:11px; line-height:1.55; outline:none; }.run-composer textarea:focus { border-color:var(--blue); }
+.run-button { min-width:91px; border:0; background:var(--ink); color:white; font-size:10px; font-weight:700; cursor:pointer; }.run-button:disabled { opacity:.48; cursor:not-allowed; }.run-button span { color:var(--lime); display:block; font-size:17px; margin-bottom:6px; }
 .transcript { margin-top:12px; background:#24231f; color:#f7f4ed; padding:14px 17px; border-left:4px solid var(--lime); }.transcript>div { display:flex; justify-content:space-between; font-size:9px; color:#bcb7ad; }.transcript p { font-family:Georgia,"Songti SC",serif; font-size:10px; line-height:1.6; margin:8px 0 0; }
+.transcript p strong { color:var(--lime); }.transcript .event-error strong { color:#ff8268; }
 
 .inspector { border-left:1px solid var(--line); min-width:0; }
 .inspector-head { height:72px; padding:14px 17px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }.inspector-head>div { display:flex; align-items:center; gap:10px; }.inspector-avatar { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; color:white; font-weight:800; }.inspector-head span:nth-child(2) { display:flex; flex-direction:column; gap:3px; }.inspector-head strong { font-size:13px; }.inspector-head small { color:var(--muted); font-size:9px; }.inspector-head button { border:0; background:transparent; color:var(--muted); }

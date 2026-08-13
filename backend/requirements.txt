@@ -1,0 +1,6 @@
+# Install only into the existing pytorch_env if one of these imports is missing.
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+httpx>=0.27,<1
+pydantic>=2.8,<3
+openai>=1.50,<3

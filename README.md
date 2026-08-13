@@ -1,77 +1,134 @@
 # 群像 · Persona Lab
 
-一个把 Agent 当作“具体的人”设计的通用多 Agent 工作室。人格、外观、观念、场景和 MCP 权限都以透明字段呈现，能够审计、导出和继续扩展。
+一个真正具备前后端运行链路的多 Agent 工作室。用户可以透明编辑每个 Agent 的身份、服装、人格、世界观和工具权限，再把多名 Agent 放进场景，由 Python 编排器逐个调用模型、实时返回事件并将完整运行记录持久化。
 
-## 本地环境约定
+## 架构
 
-本项目固定使用已有的 Conda 环境 `pytorch_env`：
+```text
+React / vinext :3000
+        │  REST + NDJSON streaming
+        ▼
+FastAPI :8000
+        ├── Agent / Scene API
+        ├── Multi-Agent Orchestrator
+        ├── SoC LaaS Provider
+        ├── Local Demo Provider
+        ├── Tool Registry（MCP 扩展边界）
+        └── SQLite（人物、场景、运行、事件）
+```
+
+后端不依赖前端保存状态。人物配置通过 `PUT /api/agents/{id}` 写入 SQLite；每次场景运行生成独立 Run，并逐条保存状态、发言和错误事件。
+
+## 固定使用 pytorch_env
+
+项目只使用已有环境：
 
 ```text
 C:\Users\19826\anaconda3\envs\pytorch_env
 ```
 
-不创建或使用 `venv`、`.venv`、其他 Conda 环境或 Python 虚拟环境。前端依赖仍由 npm 安装在项目的 `node_modules` 中，但 npm、Node 和验证命令都从 `pytorch_env` 执行。
+不会创建 `venv`、`.venv` 或其他 Conda 环境。当前环境已具备 FastAPI、Uvicorn、HTTPX、Pydantic 和 OpenAI SDK；SQLite 使用 Python 标准库。
 
-已核对的环境版本：Python 3.11.9、Node 24.18.0、npm 11.18.0。
-
-## 一键运行演示
-
-在 PowerShell 中执行：
+## 本地运行
 
 ```powershell
 cd G:\Codex\comman_agents
 powershell -ExecutionPolicy Bypass -File .\scripts\run-demo.ps1
 ```
 
-脚本会验证当前使用的是既有 `pytorch_env`，在缺少依赖时通过该环境执行 `npm ci`，随后启动开发服务器。看到地址后打开：
+脚本会在 `pytorch_env` 中启动两个服务，并在退出时清理 Python 后端进程：
 
-```text
-http://localhost:3000/
-```
+- Web 工作室：[http://localhost:3000](http://localhost:3000)
+- Python API：[http://127.0.0.1:8000](http://127.0.0.1:8000)
+- Swagger 文档：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-停止服务请按 `Ctrl+C`。
+按 `Ctrl+C` 停止。若提示端口被占用，应先停止旧的演示进程，不要重复启动。
 
-## 一键完整验证
+## 连接 SoC LaaS
+
+复制示例配置：
 
 ```powershell
-cd G:\Codex\comman_agents
+Copy-Item .env.example .env
+```
+
+编辑 `.env`：
+
+```dotenv
+SOCLAAS_API_KEY=clsk_你的真实密钥
+SOCLAAS_BASE_URL=https://soclaas-api.comp.nus.edu.sg/v1
+SOCLAAS_MODEL=qwen3.6:35b
+```
+
+不要把真实 Key 提交到 Git。`.env` 已被忽略，只有不含秘密的 `.env.example` 会被提交。
+
+重启项目后，`GET /api/health` 的结果应包含：
+
+```json
+{
+  "provider": "soclaas",
+  "live_provider_configured": true,
+  "model": "qwen3.6:35b"
+}
+```
+
+后端会使用 Bearer Token 调用：
+
+- `GET https://soclaas-api.comp.nus.edu.sg/v1/models`
+- `POST https://soclaas-api.comp.nus.edu.sg/v1/chat/completions`
+
+Key 未配置时，系统明确显示 `local-demo`，使用离线规则引擎完成整个编排、流式返回和持久化链路，不会伪装成真实模型回答。
+
+## API
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/api/health` | Provider、模型、数据库和工具状态 |
+| GET/PUT | `/api/agents`、`/api/agents/{id}` | 读取和保存透明人物配置 |
+| GET | `/api/scenes` | 获取场景定义 |
+| GET | `/api/models` | 获取 SoC Key 可见模型或离线模型 |
+| POST | `/api/tools/{name}/execute` | 按 Agent 授权执行本地工具 |
+| POST | `/api/runs` | 启动多 Agent 运行，返回 NDJSON 事件流 |
+| GET | `/api/runs` | 查询历史运行 |
+| GET | `/api/runs/{id}` | 查询一次运行及全部事件 |
+
+## MCP 与工具扩展
+
+`backend/tools.py` 是安全工具注册边界。当前提供：
+
+- `current_time`
+- `calculator`（AST 白名单计算，不使用 `eval`）
+- `memory`（声明持久化记忆能力）
+
+新的本地工具或 MCP Client 可以注册到 `ToolRegistry`。每个 Agent 只看到自己配置中授权的工具。当前 SoC Chat Completions 回合不会自动执行工具，避免模型文本触发未经确认的本地副作用；后续可在该边界加入严格 schema、审批和 MCP transport。
+
+## 完整验证
+
+```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-local.ps1
 ```
 
-验证脚本会在 `pytorch_env` 中完成干净依赖安装、代码检查、生产构建和服务端渲染测试。它不会创建任何新环境。
+验证内容：
 
-如果已经在 Anaconda Prompt 中手动激活环境，也可以使用：
+1. 确认 Python 来自 `pytorch_env`。
+2. 后端 SQLite、人物持久化、安全计算器、多 Agent 运行测试。
+3. 前端 ESLint。
+4. vinext 生产构建。
+5. 服务端产品页面渲染测试。
 
-```powershell
-conda activate pytorch_env
-npm ci
-npm run verify
-npm run dev
-```
-
-## 当前可演示能力
-
-- 三名具象 Agent：身份、职业、服装、表达、世界观和人格维度。
-- 自定义人格特质，所有变更实时反映到 JSON 透明配置。
-- 每名 Agent 独立授权 MCP 能力，并显示明确的工具 URI。
-- 四种对话场景选择和一轮本地模拟对话。
-- 配置导出和浏览器本地保存，无需 API Key 即可演示。
-- 响应式桌面与移动端布局。
-
-## 项目结构
+## 目录
 
 ```text
-app/                 Persona Lab 页面、布局和样式
-public/              favicon 与社交预览图
-scripts/             固定使用 pytorch_env 的运行及验证入口
-tests/               产品渲染与透明配置测试
-worker/              vinext / Cloudflare Worker 入口
-build/               Sites 的 Vite 集成
-db/、examples/d1/    后续服务端持久化的可选脚手架，当前演示未启用
+app/                    React 工作室
+backend/
+  main.py               FastAPI 路由
+  models.py             透明领域模型
+  repository.py         SQLite 仓库
+  providers.py          SoC LaaS / 离线 Provider
+  orchestrator.py       多 Agent 运行引擎
+  tools.py              MCP 工具注册边界
+  tests/                Python 后端测试
+scripts/                pytorch_env 启动与验证入口
+data/                   本地 SQLite 数据（Git 忽略）
+tests/                   前端构建与渲染测试
 ```
-
-## SoC LaaS 适配边界
-
-默认 Provider 预留为 `https://soclaas-api.comp.nus.edu.sg/v1`。未来服务端适配应动态读取 `/v1/models`，根据任务选择 Chat Completions 或 Responses，并由本项目持久化运行状态、执行 MCP 工具和处理 401、403、429、503。API Key 只能存放在服务端 Secret 中，不能写入浏览器存储或导出的 Persona 配置。
-
-当前版本是可独立演示的交互原型，尚未发起真实 LLM 请求，因此本地演示不需要 SoC LaaS API Key。

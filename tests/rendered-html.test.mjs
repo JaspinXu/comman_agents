@@ -23,7 +23,9 @@ test("server-renders the Persona Lab demo", async () => {
   assert.match(html, /<title>群像 · Persona Lab<\/title>/i);
   assert.match(html, /PERSONA LAB/);
   assert.match(html, /产品共创小组/);
-  assert.match(html, /SoC LaaS/);
+  assert.match(html, /Local Engine/);
+  assert.match(html, /Python 编排器驱动/);
+  assert.match(html, /POST \/api\/runs/);
   assert.match(html, /林溪/);
   assert.match(html, /程野/);
   assert.match(html, /沈知/);
@@ -38,7 +40,10 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   ]);
 
   assert.match(page, /schema:\s*"persona-lab\/v1"/);
-  assert.match(page, /window\.localStorage/);
+  assert.match(page, /\/api\/health/);
+  assert.match(page, /\/api\/agents/);
+  assert.match(page, /\/api\/runs/);
+  assert.match(page, /response\.body\.getReader/);
   assert.match(page, /JSON\.stringify/);
   assert.match(page, /exportConfig/);
   assert.match(page, /toggleTool/);

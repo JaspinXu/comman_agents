@@ -2,273 +2,163 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+type Sliders = { autonomy: number; empathy: number; creativity: number; rigor: number };
 type Agent = {
-  id: string;
-  name: string;
-  englishName: string;
-  role: string;
-  color: string;
-  initials: string;
-  quote: string;
-  outfit: string;
-  worldview: string;
-  traits: string[];
-  sliders: { autonomy: number; empathy: number; creativity: number; rigor: number };
-  tools: string[];
+  id: string; name: string; englishName: string; role: string; color: string;
+  initials: string; quote: string; outfit: string; worldview: string;
+  traits: string[]; sliders: Sliders; tools: string[];
 };
+type Scene = { id: string; index: string; title: string; subtitle: string; objective?: string; max_rounds?: number };
+type ToolManifest = { id: string; label: string; description: string; uri: string };
+type Health = { status: string; provider: string; live_provider_configured: boolean; model: string; tools: ToolManifest[] };
+type RunEvent = { type: "status" | "message" | "tool" | "error" | "complete"; agent_id?: string; agent_name?: string; content: string; metadata?: Record<string, unknown> };
 
 const seedAgents: Agent[] = [
-  {
-    id: "linxi",
-    name: "林溪",
-    englishName: "LIN XI",
-    role: "用户研究员",
-    color: "#3155d9",
-    initials: "溪",
-    quote: "我关注真实的用户需求，用证据推动决策。",
-    outfit: "钴蓝针织背心、白衬衫、银色耳钉",
-    worldview: "好问题比过早的答案更有价值。证据优先，但不忽略人的感受。",
-    traits: ["好奇", "严谨", "善于提问"],
-    sliders: { autonomy: 72, empathy: 84, creativity: 61, rigor: 88 },
-    tools: ["web_search", "notion", "memory"],
-  },
-  {
-    id: "chengye",
-    name: "程野",
-    englishName: "CHENG YE",
-    role: "系统架构师",
-    color: "#24231f",
-    initials: "野",
-    quote: "我设计可扩展的系统，让复杂变得有序。",
-    outfit: "石墨色工装衬衫、圆框眼镜、机械表",
-    worldview: "所有抽象都应当经得起边界条件的追问，可靠性也是一种善意。",
-    traits: ["系统性", "可靠", "长远思维"],
-    sliders: { autonomy: 86, empathy: 46, creativity: 68, rigor: 94 },
-    tools: ["filesystem", "github", "terminal"],
-  },
-  {
-    id: "shenzhi",
-    name: "沈知",
-    englishName: "SHEN ZHI",
-    role: "共创引导者",
-    color: "#ef5b38",
-    initials: "知",
-    quote: "我让每个人的想法被看见，一起创造更好的答案。",
-    outfit: "朱红围巾、米白亚麻上衣、金色耳环",
-    worldview: "分歧不是噪音，而是尚未被组织起来的创造力。",
-    traits: ["共情", "开放", "激发创意"],
-    sliders: { autonomy: 64, empathy: 95, creativity: 91, rigor: 58 },
-    tools: ["whiteboard", "calendar", "memory"],
-  },
+  { id: "linxi", name: "林溪", englishName: "LIN XI", role: "用户研究员", color: "#3155d9", initials: "溪", quote: "我关注真实的用户需求，用证据推动决策。", outfit: "钴蓝针织背心、白衬衫、银色耳钉", worldview: "好问题比过早的答案更有价值。证据优先，但不忽略人的感受。", traits: ["好奇", "严谨", "善于提问"], sliders: { autonomy: 72, empathy: 84, creativity: 61, rigor: 88 }, tools: ["current_time", "calculator", "memory"] },
+  { id: "chengye", name: "程野", englishName: "CHENG YE", role: "系统架构师", color: "#24231f", initials: "野", quote: "我设计可扩展的系统，让复杂变得有序。", outfit: "石墨色工装衬衫、圆框眼镜、机械表", worldview: "所有抽象都应当经得起边界条件的追问，可靠性也是一种善意。", traits: ["系统性", "可靠", "长远思维"], sliders: { autonomy: 86, empathy: 46, creativity: 68, rigor: 94 }, tools: ["calculator", "memory"] },
+  { id: "shenzhi", name: "沈知", englishName: "SHEN ZHI", role: "共创引导者", color: "#ef5b38", initials: "知", quote: "我让每个人的想法被看见，一起创造更好的答案。", outfit: "朱红围巾、米白亚麻上衣、金色耳环", worldview: "分歧不是噪音，而是尚未被组织起来的创造力。", traits: ["共情", "开放", "激发创意"], sliders: { autonomy: 64, empathy: 95, creativity: 91, rigor: 58 }, tools: ["current_time", "memory"] },
 ];
-
-const toolCatalog = [
-  { id: "web_search", label: "网络检索", mark: "⌕" },
-  { id: "memory", label: "长期记忆", mark: "◉" },
-  { id: "notion", label: "知识库", mark: "▤" },
-  { id: "filesystem", label: "文件系统", mark: "▱" },
-  { id: "github", label: "GitHub", mark: "⌘" },
-  { id: "terminal", label: "终端", mark: ">_" },
-  { id: "whiteboard", label: "白板", mark: "✦" },
-  { id: "calendar", label: "日历", mark: "□" },
-];
-
-const scenes = [
+const seedScenes: Scene[] = [
   { id: "discovery", index: "01", title: "需求探索", subtitle: "理解真实问题" },
   { id: "design", index: "02", title: "方案设计", subtitle: "形成可行路径" },
   { id: "debate", index: "03", title: "观点辩论", subtitle: "让分歧产生价值" },
   { id: "review", index: "04", title: "风险评审", subtitle: "挑战边界条件" },
 ];
+const fallbackTools: ToolManifest[] = [
+  { id: "current_time", label: "Current Time", description: "返回当前 UTC 时间", uri: "mcp://local/current_time" },
+  { id: "calculator", label: "Calculator", description: "安全算术计算", uri: "mcp://local/calculator" },
+  { id: "memory", label: "Memory", description: "持久化运行记忆", uri: "mcp://local/memory" },
+];
+const sliderLabels: Record<keyof Sliders, string> = { autonomy: "自主性", empathy: "共情倾向", creativity: "创造力", rigor: "严谨性" };
 
-const sliderLabels: Record<keyof Agent["sliders"], string> = {
-  autonomy: "自主性",
-  empathy: "共情倾向",
-  creativity: "创造力",
-  rigor: "严谨性",
-};
+function apiBase(): string {
+  if (typeof window === "undefined") return "http://127.0.0.1:8000";
+  return `http://${window.location.hostname}:8000`;
+}
 
 export default function Home() {
   const [agents, setAgents] = useState(seedAgents);
+  const [scenes, setScenes] = useState(seedScenes);
+  const [health, setHealth] = useState<Health | null>(null);
   const [selectedId, setSelectedId] = useState(seedAgents[0].id);
-  const [scene, setScene] = useState(scenes[0].id);
+  const [sceneId, setSceneId] = useState(seedScenes[0].id);
   const [tab, setTab] = useState<"identity" | "mind" | "tools" | "json">("identity");
-  const [transcript, setTranscript] = useState<string[]>([]);
-  const [notice, setNotice] = useState("本地草稿已保存");
+  const [events, setEvents] = useState<RunEvent[]>([]);
+  const [prompt, setPrompt] = useState("我们应该如何验证这个产品需求，并形成下一步行动？");
+  const [notice, setNotice] = useState("正在连接 Python 后端…");
+  const [running, setRunning] = useState(false);
   const [newTrait, setNewTrait] = useState("");
-  const storageReady = useRef(false);
+  const saveTimers = useRef<Record<string, number>>({});
 
   useEffect(() => {
-    const cached = window.localStorage.getItem("persona-lab-agents");
-    if (cached) {
-      try {
-        const restored = JSON.parse(cached) as Agent[];
-        const frame = window.requestAnimationFrame(() => {
-          setAgents(restored);
-          storageReady.current = true;
-        });
-        return () => window.cancelAnimationFrame(frame);
-      } catch { /* keep safe seed */ }
-    }
-    storageReady.current = true;
+    let active = true;
+    Promise.all([
+      fetch(`${apiBase()}/api/health`).then((response) => response.ok ? response.json() : Promise.reject(new Error("后端不可用"))),
+      fetch(`${apiBase()}/api/agents`).then((response) => response.json()),
+      fetch(`${apiBase()}/api/scenes`).then((response) => response.json()),
+    ]).then(([healthData, agentData, sceneData]: [Health, Agent[], Scene[]]) => {
+      if (!active) return;
+      setHealth(healthData); setAgents(agentData); setScenes(sceneData);
+      setNotice(healthData.live_provider_configured ? "SoC LaaS 已连接" : "离线规则引擎 · 配置 Key 后自动切换 SoC");
+    }).catch(() => {
+      if (active) setNotice("Python 后端未连接 · 请使用 run-demo.ps1 启动");
+    });
+    return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    if (!storageReady.current) return;
-    window.localStorage.setItem("persona-lab-agents", JSON.stringify(agents));
-  }, [agents]);
-
   const selected = agents.find((agent) => agent.id === selectedId) ?? agents[0];
-  const activeScene = scenes.find((item) => item.id === scene) ?? scenes[0];
+  const activeScene = scenes.find((scene) => scene.id === sceneId) ?? scenes[0];
+  const tools = health?.tools ?? fallbackTools;
   const jsonConfig = useMemo(() => JSON.stringify({ schema: "persona-lab/v1", agent: selected }, null, 2), [selected]);
 
+  function persistAgent(agent: Agent) {
+    window.clearTimeout(saveTimers.current[agent.id]);
+    saveTimers.current[agent.id] = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`${apiBase()}/api/agents/${agent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agent) });
+        if (!response.ok) throw new Error(await response.text());
+        setNotice("人物配置已保存到 SQLite");
+      } catch { setNotice("保存失败：Python 后端未连接"); }
+    }, 450);
+  }
+
   function updateSelected(patch: Partial<Agent>) {
-    setAgents((current) => current.map((agent) => agent.id === selected.id ? { ...agent, ...patch } : agent));
-    setNotice("更改已写入透明配置");
+    const updated = { ...selected, ...patch };
+    setAgents((current) => current.map((agent) => agent.id === selected.id ? updated : agent));
+    setNotice("正在保存透明配置…");
+    persistAgent(updated);
   }
 
   function toggleTool(id: string) {
-    const tools = selected.tools.includes(id)
-      ? selected.tools.filter((tool) => tool !== id)
-      : [...selected.tools, id];
-    updateSelected({ tools });
+    updateSelected({ tools: selected.tools.includes(id) ? selected.tools.filter((tool) => tool !== id) : [...selected.tools, id] });
   }
 
-  function runScene() {
-    const turns = [
-      `林溪：先别急着定义答案。我们还缺少用户在什么时刻真正感到困难。`,
-      `程野：我会把结论拆成可验证的假设，并标出系统边界。`,
-      `沈知：很好。我们先保留分歧，再找一个三个人都愿意验证的最小行动。`,
-    ];
-    setTranscript(turns);
-    setNotice(`“${activeScene.title}”已完成一次模拟`);
+  async function runScene() {
+    setEvents([]); setRunning(true); setNotice("多 Agent 场景运行中…");
+    try {
+      const response = await fetch(`${apiBase()}/api/runs`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scene_id: activeScene.id, prompt, agent_ids: agents.map((agent) => agent.id), rounds: 1 }),
+      });
+      if (!response.ok || !response.body) throw new Error(await response.text());
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        const lines = buffer.split("\n"); buffer = lines.pop() ?? "";
+        for (const line of lines) if (line.trim()) {
+          const event = JSON.parse(line) as RunEvent;
+          setEvents((current) => [...current, event]);
+          if (event.type === "error") setNotice(`运行失败：${event.content}`);
+        }
+        if (done) break;
+      }
+      setNotice("运行已持久化，可通过 API 查询记录");
+    } catch (error) {
+      setNotice(`无法运行：${error instanceof Error ? error.message : "未知错误"}`);
+    } finally { setRunning(false); }
   }
 
   function exportConfig() {
-    const blob = new Blob([JSON.stringify({ schema: "persona-lab/v1", agents, scene }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "persona-lab.config.json";
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setNotice("配置已导出，可审计、可迁移");
+    const blob = new Blob([JSON.stringify({ schema: "persona-lab/v1", agents, scene: sceneId }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+    anchor.href = url; anchor.download = "persona-lab.config.json"; anchor.click(); URL.revokeObjectURL(url);
   }
 
-  return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand-block">
-          <span className="brand-mark">群像</span>
-          <div><strong>PERSONA LAB</strong><small>AGENT COMPOSITION STUDIO</small></div>
-        </div>
-        <nav className="primary-nav" aria-label="主导航">
-          <button className="nav-item active">工作室</button>
-          <button className="nav-item">场景库</button>
-          <button className="nav-item">运行记录</button>
-        </nav>
-        <div className="top-actions">
-          <div className="provider-pill"><i /> SoC LaaS <span>qwen3.6:35b</span></div>
-          <button className="icon-button" aria-label="帮助">?</button>
-          <button className="avatar-mini">ZB</button>
-        </div>
-      </header>
-
-      <section className="workspace">
-        <aside className="rail">
-          <div className="rail-heading"><span>你的成员</span><b>{agents.length}</b></div>
-          <div className="agent-rail-list">
-            {agents.map((agent) => (
-              <button key={agent.id} className={`rail-agent ${agent.id === selected.id ? "selected" : ""}`} onClick={() => setSelectedId(agent.id)}>
-                <span className="rail-avatar" style={{ background: agent.color }}>{agent.initials}</span>
-                <span><strong>{agent.name}</strong><small>{agent.role}</small></span>
-                <i aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-          <button className="add-agent"><span>＋</span> 创建一个具体的人</button>
-          <div className="rail-note">
-            <span className="eyebrow">设计原则 01</span>
-            <p>Agent 不是提示词容器。身份、观念、关系与能力都应当可见。</p>
-          </div>
-          <button className="export-button" onClick={exportConfig}>⇩ 导出全部配置</button>
-        </aside>
-
-        <section className="canvas">
-          <div className="canvas-head">
-            <div><span className="eyebrow">ENSEMBLE / 001</span><h1>产品共创小组</h1><p>三种视角，一场有结构的对话。</p></div>
-            <div className="presence"><span className="stacked-avatars">{agents.map((a) => <i key={a.id} style={{ background: a.color }}>{a.initials}</i>)}</span><b>{notice}</b></div>
-          </div>
-
-          <div className="people-grid">
-            {agents.map((agent) => (
-              <article key={agent.id} className={`person-card ${agent.id === selected.id ? "focused" : ""}`} style={{ "--agent": agent.color } as React.CSSProperties}>
-                <button className="person-card-hit" onClick={() => setSelectedId(agent.id)} aria-label={`编辑 ${agent.name} 的人物配置`} />
-                <div className="portrait">
-                  <span className="portrait-index">{agent.englishName}</span>
-                  <div className="portrait-figure"><b>{agent.initials}</b><i /></div>
-                  <span className="role-stamp">{agent.role}</span>
-                </div>
-                <div className="person-copy">
-                  <div className="name-row"><h2>{agent.name}</h2><span>正在场</span></div>
-                  <div className="trait-row">{agent.traits.slice(0, 3).map((trait) => <em key={trait}>{trait}</em>)}</div>
-                  <blockquote>“{agent.quote}”</blockquote>
-                  <div className="tool-dots">{agent.tools.slice(0, 4).map((tool) => <i key={tool} title={tool}>{toolCatalog.find((item) => item.id === tool)?.mark ?? "·"}</i>)}</div>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <section className="scene-section">
-            <div className="section-title"><div><span className="eyebrow">SCENES</span><h2>把他们放进一个具体场景</h2></div><button className="text-button">管理场景 →</button></div>
-            <div className="scene-flow">
-              {scenes.map((item, index) => (
-                <div className="scene-wrap" key={item.id}>
-                  <button className={`scene-card ${scene === item.id ? "active" : ""}`} onClick={() => setScene(item.id)}>
-                    <span>{item.index}</span><b>{item.title}</b><small>{item.subtitle}</small><i>{scene === item.id ? "●" : "○"}</i>
-                  </button>
-                  {index < scenes.length - 1 && <span className="flow-arrow">→</span>}
-                </div>
-              ))}
-              <button className="run-button" onClick={runScene}><span>▶</span> 开始模拟</button>
-            </div>
-            {transcript.length > 0 && <div className="transcript"><div><span>本轮输出</span><b>{activeScene.title} · 3 个发言</b></div>{transcript.map((line) => <p key={line}>{line}</p>)}</div>}
-          </section>
+  return <main className="app-shell">
+    <header className="topbar">
+      <div className="brand-block"><span className="brand-mark">群像</span><div><strong>PERSONA LAB</strong><small>AGENT COMPOSITION STUDIO</small></div></div>
+      <nav className="primary-nav" aria-label="主导航"><button className="nav-item active">工作室</button><button className="nav-item">场景库</button><button className="nav-item">运行记录</button></nav>
+      <div className="top-actions"><div className={`provider-pill ${health ? "online" : ""}`}><i /> {health?.provider === "soclaas" ? "SoC LaaS" : "Local Engine"} <span>{health?.model ?? "connecting"}</span></div><a className="icon-button api-doc" href="http://127.0.0.1:8000/docs" target="_blank" rel="noreferrer" aria-label="打开后端 API 文档">API</a><button className="avatar-mini">ZB</button></div>
+    </header>
+    <section className="workspace">
+      <aside className="rail">
+        <div className="rail-heading"><span>你的成员</span><b>{agents.length}</b></div>
+        <div className="agent-rail-list">{agents.map((agent) => <button key={agent.id} className={`rail-agent ${agent.id === selected.id ? "selected" : ""}`} onClick={() => setSelectedId(agent.id)}><span className="rail-avatar" style={{ background: agent.color }}>{agent.initials}</span><span><strong>{agent.name}</strong><small>{agent.role}</small></span><i aria-hidden="true" /></button>)}</div>
+        <div className="rail-note"><span className="eyebrow">运行状态</span><p>{notice}</p></div>
+        <button className="export-button" onClick={exportConfig}>↓ 导出全部配置</button>
+      </aside>
+      <section className="canvas">
+        <div className="canvas-head"><div><span className="eyebrow">ENSEMBLE / LIVE</span><h1>产品共创小组</h1><p>由 Python 编排器驱动，运行与发言持久化到 SQLite。</p></div><div className="presence"><span className="stacked-avatars">{agents.map((agent) => <i key={agent.id} style={{ background: agent.color }}>{agent.initials}</i>)}</span><b>{health ? "后端在线" : "等待后端"}</b></div></div>
+        <div className="people-grid">{agents.map((agent) => <article key={agent.id} className={`person-card ${agent.id === selected.id ? "focused" : ""}`} style={{ "--agent": agent.color } as React.CSSProperties}><button className="person-card-hit" onClick={() => setSelectedId(agent.id)} aria-label={`编辑 ${agent.name} 的人物配置`} /><div className="portrait"><span className="portrait-index">{agent.englishName}</span><div className="portrait-figure"><b>{agent.initials}</b><i /></div><span className="role-stamp">{agent.role}</span></div><div className="person-copy"><div className="name-row"><h2>{agent.name}</h2><span>已加载</span></div><div className="trait-row">{agent.traits.slice(0, 3).map((trait) => <em key={trait}>{trait}</em>)}</div><blockquote>“{agent.quote}”</blockquote><div className="tool-dots">{agent.tools.slice(0, 4).map((tool) => <i key={tool} title={tool}>{tool.slice(0, 2)}</i>)}</div></div></article>)}</div>
+        <section className="scene-section">
+          <div className="section-title"><div><span className="eyebrow">SCENES</span><h2>让三个人围绕真实任务展开对话</h2></div><span className="runtime-badge">POST /api/runs · NDJSON</span></div>
+          <div className="scene-flow">{scenes.map((scene, index) => <div className="scene-wrap" key={scene.id}><button className={`scene-card ${sceneId === scene.id ? "active" : ""}`} onClick={() => setSceneId(scene.id)}><span>{scene.index}</span><b>{scene.title}</b><small>{scene.subtitle}</small><i>{sceneId === scene.id ? "●" : "○"}</i></button>{index < scenes.length - 1 && <span className="flow-arrow">→</span>}</div>)}</div>
+          <div className="run-composer"><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} aria-label="本次多 Agent 任务" /><button className="run-button" onClick={runScene} disabled={running || !health}><span>{running ? "…" : "▶"}</span>{running ? "运行中" : "开始运行"}</button></div>
+          {events.length > 0 && <div className="transcript"><div><span>实时事件流</span><b>{activeScene.title} · {health?.provider}</b></div>{events.map((event, index) => <p key={`${event.type}-${index}`} className={`event-${event.type}`}><strong>{event.agent_name ?? (event.type === "error" ? "错误" : "系统")}：</strong>{event.content}</p>)}</div>}
         </section>
-
-        <aside className="inspector">
-          <div className="inspector-head"><div><span className="inspector-avatar" style={{ background: selected.color }}>{selected.initials}</span><span><strong>{selected.name}</strong><small>{selected.role}</small></span></div><button aria-label="更多">•••</button></div>
-          <div className="tabs" role="tablist">
-            <button className={tab === "identity" ? "active" : ""} onClick={() => setTab("identity")}>身份</button>
-            <button className={tab === "mind" ? "active" : ""} onClick={() => setTab("mind")}>内心</button>
-            <button className={tab === "tools" ? "active" : ""} onClick={() => setTab("tools")}>能力</button>
-            <button className={tab === "json" ? "active" : ""} onClick={() => setTab("json")}>{"{ }"}</button>
-          </div>
-
-          {tab === "identity" && <div className="panel-body">
-            <label className="field"><span>角色 / 职业</span><input value={selected.role} onChange={(e) => updateSelected({ role: e.target.value })} /></label>
-            <label className="field"><span>外观与服装</span><textarea value={selected.outfit} onChange={(e) => updateSelected({ outfit: e.target.value })} /></label>
-            <label className="field"><span>代表性表达</span><textarea value={selected.quote} onChange={(e) => updateSelected({ quote: e.target.value })} /></label>
-            <div className="callout"><b>完全透明</b><p>这些字段会原样进入 Agent 配置。没有隐藏人格层。</p></div>
-          </div>}
-
-          {tab === "mind" && <div className="panel-body">
-            <label className="field"><span>世界观 / 判断原则</span><textarea className="tall" value={selected.worldview} onChange={(e) => updateSelected({ worldview: e.target.value })} /></label>
-            <div className="slider-group">
-              {(Object.keys(sliderLabels) as (keyof Agent["sliders"])[]).map((key) => <label className="slider" key={key}><span>{sliderLabels[key]} <b>{selected.sliders[key]}</b></span><input type="range" min="0" max="100" value={selected.sliders[key]} onChange={(e) => updateSelected({ sliders: { ...selected.sliders, [key]: Number(e.target.value) } })} /></label>)}
-            </div>
-            <div className="trait-editor"><span>核心特质</span><div>{selected.traits.map((trait) => <button key={trait} onClick={() => updateSelected({ traits: selected.traits.filter((item) => item !== trait) })}>{trait} ×</button>)}</div><form onSubmit={(e) => { e.preventDefault(); if (newTrait.trim()) { updateSelected({ traits: [...selected.traits, newTrait.trim()] }); setNewTrait(""); } }}><input placeholder="添加一个特质" value={newTrait} onChange={(e) => setNewTrait(e.target.value)} /><button>＋</button></form></div>
-          </div>}
-
-          {tab === "tools" && <div className="panel-body">
-            <div className="tool-summary"><span><b>{selected.tools.length}</b> 个能力已授权</span><small>每个调用都写入运行记录</small></div>
-            <div className="tool-list">{toolCatalog.map((tool) => <button key={tool.id} className={selected.tools.includes(tool.id) ? "enabled" : ""} onClick={() => toggleTool(tool.id)}><i>{tool.mark}</i><span><b>{tool.label}</b><small>mcp://{tool.id}</small></span><em>{selected.tools.includes(tool.id) ? "已允许" : "未授权"}</em></button>)}</div>
-          </div>}
-
-          {tab === "json" && <div className="panel-body json-panel"><div className="json-head"><span>persona.config.json</span><button onClick={() => navigator.clipboard?.writeText(jsonConfig)}>复制</button></div><pre>{jsonConfig}</pre><p>界面中的每一项都能在这里找到对应字段。</p></div>}
-
-          <div className="provider-card"><div><span className="status-dot" /><b>SoC LaaS Provider</b></div><code>https://soclaas-api.comp.nus.edu.sg/v1</code><p>推理可替换 · 状态由本项目持久化 · MCP 在本地编排</p></div>
-        </aside>
       </section>
-    </main>
-  );
+      <aside className="inspector">
+        <div className="inspector-head"><div><span className="inspector-avatar" style={{ background: selected.color }}>{selected.initials}</span><span><strong>{selected.name}</strong><small>{selected.role}</small></span></div><span className="db-mark">SQLite</span></div>
+        <div className="tabs" role="tablist"><button className={tab === "identity" ? "active" : ""} onClick={() => setTab("identity")}>身份</button><button className={tab === "mind" ? "active" : ""} onClick={() => setTab("mind")}>内心</button><button className={tab === "tools" ? "active" : ""} onClick={() => setTab("tools")}>能力</button><button className={tab === "json" ? "active" : ""} onClick={() => setTab("json")}>{"{ }"}</button></div>
+        {tab === "identity" && <div className="panel-body"><label className="field"><span>角色 / 职业</span><input value={selected.role} onChange={(event) => updateSelected({ role: event.target.value })} /></label><label className="field"><span>外观与服装</span><textarea value={selected.outfit} onChange={(event) => updateSelected({ outfit: event.target.value })} /></label><label className="field"><span>代表性表达</span><textarea value={selected.quote} onChange={(event) => updateSelected({ quote: event.target.value })} /></label><div className="callout"><b>服务端透明持久化</b><p>字段通过 PUT /api/agents/:id 写入 SQLite，没有隐藏人格层。</p></div></div>}
+        {tab === "mind" && <div className="panel-body"><label className="field"><span>世界观 / 判断原则</span><textarea className="tall" value={selected.worldview} onChange={(event) => updateSelected({ worldview: event.target.value })} /></label><div className="slider-group">{(Object.keys(sliderLabels) as (keyof Sliders)[]).map((key) => <label className="slider" key={key}><span>{sliderLabels[key]} <b>{selected.sliders[key]}</b></span><input type="range" min="0" max="100" value={selected.sliders[key]} onChange={(event) => updateSelected({ sliders: { ...selected.sliders, [key]: Number(event.target.value) } })} /></label>)}</div><div className="trait-editor"><span>核心特质</span><div>{selected.traits.map((trait) => <button key={trait} onClick={() => updateSelected({ traits: selected.traits.filter((item) => item !== trait) })}>{trait} ×</button>)}</div><form onSubmit={(event) => { event.preventDefault(); if (newTrait.trim()) { updateSelected({ traits: [...selected.traits, newTrait.trim()] }); setNewTrait(""); } }}><input placeholder="添加一个特质" value={newTrait} onChange={(event) => setNewTrait(event.target.value)} /><button>＋</button></form></div></div>}
+        {tab === "tools" && <div className="panel-body"><div className="tool-summary"><span><b>{selected.tools.length}</b> 个能力已授权</span><small>Python 工具注册边界</small></div><div className="tool-list">{tools.map((tool) => <button key={tool.id} className={selected.tools.includes(tool.id) ? "enabled" : ""} onClick={() => toggleTool(tool.id)}><i>{tool.id.slice(0, 2)}</i><span><b>{tool.label}</b><small>{tool.uri}</small></span><em>{selected.tools.includes(tool.id) ? "已允许" : "未授权"}</em></button>)}</div></div>}
+        {tab === "json" && <div className="panel-body json-panel"><div className="json-head"><span>persona.config.json</span><button onClick={() => navigator.clipboard?.writeText(jsonConfig)}>复制</button></div><pre>{jsonConfig}</pre><p>界面中的每一项都能在这里找到对应字段。</p></div>}
+        <div className="provider-card"><div><span className="status-dot" /><b>{health?.provider === "soclaas" ? "SoC LaaS 已连接" : "离线模式"}</b></div><code>Python :8000 → {health?.model ?? "等待连接"}</code><p>{health?.live_provider_configured ? "真实模型推理 · SQLite 运行记录 · 本地工具边界" : "设置 SOCLAAS_API_KEY 后重启即可启用真实推理"}</p></div>
+      </aside>
+    </section>
+  </main>;
 }
