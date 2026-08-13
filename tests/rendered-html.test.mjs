@@ -47,6 +47,7 @@ test("keeps persona configuration transparent and local-demo safe", async () => 
   assert.match(page, /response\.body\.getReader/);
   assert.match(page, /JSON\.stringify/);
   assert.doesNotMatch(page, /exportConfig|导出全部配置|rail-note|export-button/);
+  assert.doesNotMatch(page, /服务端透明持久化|没有隐藏人格层|className="callout"/);
   assert.match(page, /toggleTool/);
   assert.match(page, /askEnsemble/);
   assert.match(page, /storyBackground/);
